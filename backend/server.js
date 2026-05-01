@@ -54,7 +54,18 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, carpetaDocs),
     filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname)
 });
-const upload = multer({ storage: storage });
+
+const upload = multer({ 
+    storage: storage,
+    fileFilter: (req, file, cb) => {
+        const ext = path.extname(file.originalname).toLowerCase();
+        if (ext === '.pdf' || ext === '.txt') {
+            cb(null, true);
+        } else {
+            cb(new Error('Solo se permiten archivos PDF o TXT'));
+        }
+    }
+});
 
 // ---------------------------------------------------------
 // 🔐 ENDPOINT: LOGIN
@@ -88,26 +99,18 @@ app.get('/api/usuarios', async (req, res) => {
 app.post('/api/usuarios', async (req, res) => {
     try {
         const { requesterRol, nuevoUsername, nuevoPassword, nuevoRol } = req.body;
-
-        if (requesterRol !== 'admin') {
-            return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
-        }
+        if (requesterRol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
 
         if (nuevoRol === 'admin') {
             const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
-            if (conteoAdmins >= 10) {
-                return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 10 Administradores.' });
-            }
+            if (conteoAdmins >= 10) return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 10 Administradores.' });
         }
 
         const existe = await Usuario.findOne({ username: nuevoUsername });
-        if (existe) {
-            return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
-        }
+        if (existe) return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
 
         const nuevoUser = new Usuario({ username: nuevoUsername, password: nuevoPassword, rol: nuevoRol });
         await nuevoUser.save();
-
         res.json({ mensaje: 'Usuario registrado con éxito' });
     } catch (error) {
         res.status(500).json({ error: 'Error al crear el usuario' });
@@ -121,9 +124,7 @@ app.get('/api/documentos', async (req, res) => {
     try {
         const { username, rol } = req.query;
         let filtro = {};
-        if (rol === 'editor') {
-            filtro = { asignado_a: { $in: [username, 'todos'] } };
-        }
+        if (rol === 'editor') filtro = { asignado_a: { $in: [username, 'todos'] } };
         const historial = await Documento.find(filtro).sort({ fecha: -1 });
         res.json(historial);
     } catch (error) {
@@ -135,9 +136,6 @@ app.get('/api/descargar/:nombre', (req, res) => {
     res.download(path.join(carpetaDocs, req.params.nombre));
 });
 
-// ---------------------------------------------------------
-// 👁️ ENDPOINT: VER PDF (Visor Seguro)
-// ---------------------------------------------------------
 app.get('/api/ver/:nombre', (req, res) => {
     const rutaArchivo = path.join(carpetaDocs, req.params.nombre);
     if (fs.existsSync(rutaArchivo)) {
@@ -149,17 +147,23 @@ app.get('/api/ver/:nombre', (req, res) => {
 
 app.post('/api/analizar', upload.single('documento'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'Falta PDF' });
+        if (!req.file) return res.status(400).json({ error: 'Falta archivo' });
         const asignadoA = req.body.asignado_a || 'todos';
+        let textoLimpio = "";
 
-        const pdfBuffer = fs.readFileSync(req.file.path);
-        const pdfData = await pdfParse(pdfBuffer);
-        const textoLimpio = pdfData.text.trim().substring(0, 3000);
+        if (req.file.mimetype === 'application/pdf') {
+            const pdfBuffer = fs.readFileSync(req.file.path);
+            const pdfData = await pdfParse(pdfBuffer);
+            textoLimpio = pdfData.text;
+        } else {
+            textoLimpio = fs.readFileSync(req.file.path, 'utf-8');
+        }
+
+        textoLimpio = textoLimpio.trim().substring(0, 3000);
 
         const promptOficina = `Eres un asistente estricto. Tu única tarea es leer el texto delimitado por ### y devolver exactamente dos cosas:
 1. Un resumen muy corto (máximo 2 líneas).
 2. La prioridad (estrictamente la palabra Rojo, Ámbar o Verde).
-PROHIBIDO devolver el texto original. PROHIBIDO dar explicaciones.
 ###
 ${textoLimpio}
 ###
@@ -183,7 +187,6 @@ Tu respuesta:`;
         });
 
         await nuevoRegistro.save();
-
         res.json({ mensaje: 'Éxito', registro: nuevoRegistro });
     } catch (error) {
         console.error("❌ Error:", error);
