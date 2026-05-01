@@ -3,130 +3,275 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Sistema de Documentos Distribuido</title>
+    <title>Sistema de Documentos IA</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --bg: #050505;
+            --card: #121212;
+            --accent: #ffb800; 
+            --accent-glow: rgba(255, 184, 0, 0.15);
+            --secondary: #7c3aed; 
+            --success: #00ff88; 
+            --warning: #ffb300; 
+            --danger: #ff4d4d;  
+            --text: #ffffff;
+            --text-dim: #888888;
+            --border: rgba(255, 255, 255, 0.08);
+            --radius: 20px; 
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
-        .navbar { background: #1e293b; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
-        .navbar h1 { font-size: 1.3rem; color: #38bdf8; }
-        .navbar span { font-size: 0.9rem; color: #94a3b8; }
-        .btn-logout { background: #ef4444; color: white; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
-        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        .login-box { background: #1e293b; padding: 2.5rem; border-radius: 12px; width: 360px; border: 1px solid #334155; }
-        .login-box h2 { text-align: center; margin-bottom: 1.5rem; color: #38bdf8; font-size: 1.4rem; }
-        .form-group { margin-bottom: 1rem; }
-        .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; color: #94a3b8; }
-        .form-group input, select { width: 100%; padding: 0.6rem 0.9rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; }
-        .btn-primary { width: 100%; padding: 0.75rem; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 0.5rem; }
-        .btn-visitor { width: 100%; padding: 0.6rem; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; cursor: pointer; margin-top: 0.5rem; }
-        .error-msg { color: #ef4444; font-size: 0.85rem; text-align: center; margin-top: 0.5rem; }
-        .main-container { padding: 2rem; max-width: 1100px; margin: 0 auto; }
-        .upload-section { background: #1e293b; border: 2px dashed #334155; border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 2rem; }
-        .admin-panel { border-color: #f59e0b; }
-        .btn-upload { background: #38bdf8; color: #0f172a; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
-        .upload-status { margin-top: 1rem; font-size: 0.9rem; color: #94a3b8; }
-        .docs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-        .btn-refresh { background: #334155; color: #e2e8f0; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; }
-        .doc-card { background: #1e293b; border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1rem; border-left: 5px solid #334155; display: flex; justify-content: space-between; gap: 1rem; }
-        .doc-card.rojo { border-left-color: #ef4444; }
-        .doc-card.ambar { border-left-color: #f59e0b; }
-        .doc-card.verde { border-left-color: #22c55e; }
-        .doc-info { flex: 1; }
-        .doc-nombre { font-weight: bold; font-size: 1rem; margin-bottom: 0.3rem; }
-        .doc-resumen { font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.4; white-space: pre-wrap; }
-        .doc-meta { font-size: 0.75rem; color: #64748b; display: flex; gap: 1rem; flex-wrap: wrap; }
-        .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold; margin-bottom: 0.5rem; }
-        .badge.rojo { background: #7f1d1d; color: #fca5a5; }
-        .badge.ambar { background: #78350f; color: #fcd34d; }
-        .badge.verde { background: #14532d; color: #86efac; }
-        .btn-download { background: #334155; color: #e2e8f0; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
-        .workers-status { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
-        .worker-badge { background: #14532d; color: #86efac; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem; }
-        .inline-inputs { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
-        .inline-inputs input, .inline-inputs select { width: auto; min-width: 150px; }
+        body { 
+            font-family: 'Outfit', sans-serif; 
+            background: var(--bg); 
+            color: var(--text); 
+            min-height: 100vh;
+            background-image: 
+                radial-gradient(circle at 80% 20%, rgba(124, 58, 237, 0.06) 0%, transparent 40%),
+                radial-gradient(circle at 20% 80%, rgba(255, 184, 0, 0.04) 0%, transparent 40%);
+        }
+
+        /* Navbar Responsiva */
+        .navbar { 
+            background: rgba(18, 18, 18, 0.7); 
+            backdrop-filter: blur(20px);
+            padding: 1.2rem 2rem; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100;
+        }
+        @media (max-width: 600px) {
+            .navbar { padding: 1rem; flex-direction: column; gap: 10px; text-align: center; }
+        }
+
+        .navbar h1 { font-size: 1.3rem; font-weight: 700; color: var(--accent); letter-spacing: 1px; }
+
+        .btn-logout { 
+            background: transparent; 
+            color: var(--danger); 
+            border: 1.5px solid var(--danger); 
+            padding: 0.5rem 1.2rem; 
+            border-radius: var(--radius); 
+            cursor: pointer; 
+            font-weight: 600;
+            transition: 0.3s ease;
+        }
+        .btn-logout:hover { background: var(--danger); color: white; box-shadow: 0 0 20px rgba(255, 77, 77, 0.3); }
+
+        /* Login */
+        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 20px; }
+        .login-box { 
+            background: var(--card); 
+            padding: 3.5rem; 
+            border-radius: 30px; 
+            width: 100%; 
+            max-width: 420px; 
+            border: 1px solid var(--border);
+            box-shadow: 0 40px 100px rgba(0,0,0,0.8);
+        }
+        @media (max-width: 480px) { .login-box { padding: 2rem; } }
+
+        .form-group { margin-bottom: 1.5rem; }
+        .form-group label { display: block; margin-bottom: 0.6rem; font-size: 0.75rem; color: var(--text-dim); padding-left: 10px; }
+        .form-group input, select { 
+            width: 100%; padding: 1rem 1.5rem; 
+            background: rgba(0,0,0,0.3); 
+            border: 1px solid var(--border); 
+            border-radius: var(--radius); 
+            color: #fff; 
+            transition: 0.3s;
+            font-size: 16px;
+        }
+        .form-group input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 15px var(--accent-glow); }
+
+        .btn-primary { 
+            width: 100%; padding: 1rem; 
+            background: var(--accent); 
+            color: #000; 
+            border: none; 
+            border-radius: var(--radius); 
+            font-weight: 700; 
+            cursor: pointer; 
+            transition: 0.4s;
+            text-transform: uppercase;
+        }
+
+        /* Contenedor Principal */
+        .main-container { padding: 3rem 2rem; max-width: 1100px; margin: 0 auto; }
+        @media (max-width: 600px) { .main-container { padding: 1.5rem 1rem; } }
         
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
-        .modal-content { background: #1e293b; padding: 1.5rem; border-radius: 12px; width: 85%; height: 85vh; position: relative; border: 1px solid #334155; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
-        .close-modal { position: absolute; top: 15px; right: 20px; background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
-        .close-modal:hover { background: #dc2626; }
-        .pdf-frame { flex-grow: 1; width: 100%; border: none; margin-top: 2.5rem; border-radius: 8px; background: #fff; }
+        .worker-badge { 
+            background: rgba(124, 58, 237, 0.1); 
+            color: var(--secondary); 
+            padding: 0.6rem 1.2rem; 
+            border-radius: 50px; 
+            font-size: 0.7rem; 
+            font-weight: 700;
+            border: 1px solid rgba(124, 58, 237, 0.2);
+            margin-right: 10px;
+            display: inline-block;
+            margin-bottom: 5px;
+        }
+
+        .upload-section { 
+            background: var(--card); 
+            border: 1px solid var(--border); 
+            border-radius: 25px; 
+            padding: 2.5rem; 
+            text-align: center; 
+            margin-bottom: 3rem;
+        }
+
+        .btn-upload { 
+            background: #fff; color: #000; 
+            border: none; padding: 0.8rem 2.2rem; 
+            border-radius: var(--radius); font-weight: 700; 
+            cursor: pointer; transition: 0.3s;
+        }
+
+        /* Tarjetas de Documentos */
+        .doc-card { 
+            background: var(--card); border-radius: 20px; 
+            padding: 1.8rem; margin-bottom: 1.5rem; 
+            border: 1px solid var(--border);
+            display: flex; 
+            justify-content: space-between; 
+            transition: 0.3s ease;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        
+        .doc-card.rojo { border-left: 6px solid var(--danger); }
+        .doc-card.ambar { border-left: 6px solid var(--warning); }
+        .doc-card.verde { border-left: 6px solid var(--success); }
+
+        .doc-nombre { font-weight: 600; font-size: 1.15rem; margin-bottom: 0.5rem; }
+        .doc-resumen { font-size: 0.9rem; color: var(--text-dim); margin-bottom: 1.5rem; line-height: 1.5; }
+        
+        .badge { 
+            display: inline-block; padding: 0.3rem 1rem; 
+            border-radius: 50px; font-size: 0.65rem; font-weight: 800; 
+            text-transform: uppercase; margin-bottom: 1rem;
+        }
+        .badge.rojo { background: rgba(255, 77, 77, 0.15); color: var(--danger); }
+        .badge.ambar { background: rgba(255, 179, 0, 0.15); color: var(--warning); }
+        .badge.verde { background: rgba(0, 255, 136, 0.15); color: var(--success); }
+
+        .btn-download { 
+            background: transparent; color: #fff; 
+            border: 1px solid var(--border); 
+            padding: 0.7rem 1.4rem; border-radius: 50px; 
+            cursor: pointer; font-size: 0.8rem; font-weight: 600;
+        }
+
+        /* Modal */
+        .modal-overlay { 
+            display: none; position: fixed; 
+            top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.95); 
+            z-index: 1000; justify-content: center; align-items: center; 
+            backdrop-filter: blur(10px);
+        }
+        .modal-content { 
+            background: #111; width: 90%; height: 85vh; 
+            border: 1px solid var(--border); border-radius: 30px;
+            display: flex; flex-direction: column; overflow: hidden;
+        }
+        .pdf-frame { flex-grow: 1; border: none; background: white; }
+
+        .inline-inputs { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 2rem; }
+        .inline-inputs input, .inline-inputs select { flex: 1; min-width: 200px; }
     </style>
 </head>
 <body>
+
+    <!-- ACCESO -->
     <div class="login-container" id="loginSection">
         <div class="login-box">
-            <h2>📂 Sistema Distribuido</h2>
-            <div class="form-group"><label>Usuario</label><input type="text" id="inputUser" placeholder="admin" /></div>
-            <div class="form-group"><label>Contraseña</label><input type="password" id="inputPass" placeholder="123" /></div>
-            <button class="btn-primary" onclick="iniciarSesion()">Iniciar sesión</button>
-            <button class="btn-visitor" onclick="entrarVisitante()">👁️ Entrar como visitante</button>
-            <p class="error-msg" id="errorMsg"></p>
+            <h2 style="color: var(--accent); text-align: center; margin-bottom: 2.5rem;">IDENTIFICACIÓN</h2>
+            <div class="form-group"><label>USUARIO</label><input type="text" id="inputUser" placeholder="admin" /></div>
+            <div class="form-group"><label>CONTRASEÑA</label><input type="password" id="inputPass" placeholder="••••" /></div>
+            <button class="btn-primary" onclick="iniciarSesion()">Acceder al Sistema</button>
+            <button class="btn-visitor" onclick="entrarVisitante()" style="color: var(--text-dim); background: none; border: none; width: 100%; margin-top: 1rem; cursor: pointer;">Entrar como Invitado</button>
+            <p id="errorMsg" style="color: var(--danger); text-align: center; margin-top: 1.5rem; font-size: 0.8rem;"></p>
         </div>
     </div>
 
+    <!-- APP PRINCIPAL -->
     <div id="appSection" style="display: none">
         <div class="navbar">
-            <h1>📂 Nginx + IA Cluster</h1>
-            <span id="labelUsuario"></span>
-            <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+            <h1>DOC_IA.v3</h1>
+            <div style="display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; justify-content: center;">
+                <span id="labelUsuario"></span>
+                <button class="btn-logout" onclick="cerrarSesion()">Cerrar Sesión</button>
+            </div>
         </div>
+
         <div class="main-container">
-            <div class="workers-status">
-                <span class="worker-badge">🌐 Balanceador Nginx: Activo</span>
-                <span class="worker-badge">🤖 Clúster Ollama: Conectado</span>
+            <div style="margin-bottom: 2rem; text-align: center;">
+                <span class="worker-badge">● SERVIDOR ONLINE</span>
+                <span class="worker-badge">● IA CLUSTER ACTIVO</span>
             </div>
 
+            <!-- PANEL ADMIN -->
             <div class="upload-section admin-panel" id="adminUsersSection" style="display: none">
-                <h3 style="margin-bottom: 5px; color:#f59e0b;">👥 Panel de Administrador: Registro</h3>
-                <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores.</p>
+                <h3 style="margin-bottom: 10px; color: var(--secondary);">GESTIÓN DE USUARIOS</h3>
                 <div class="inline-inputs">
                     <input type="text" id="newUsername" placeholder="Nuevo Usuario">
-                    <input type="password" id="newPassword" placeholder="Contraseña">
+                    <input type="password" id="newPassword" placeholder="Clave">
                     <select id="newRole">
-                        <option value="editor">Usuario normal</option>
-                        <option value="admin">Administrador</option>
+                        <option value="editor">Rol Editor</option>
+                        <option value="admin">Rol Administrador</option>
                     </select>
                 </div>
-                <button class="btn-upload" style="background: #f59e0b; color: white;" onclick="crearUsuario()">+ Registrar Usuario</button>
-                <div id="userStatus" style="margin-top: 1rem; font-size: 0.9rem; font-weight: bold;"></div>
+                <button class="btn-upload" style="background: var(--secondary); color: #fff;" onclick="crearUsuario()">Guardar Usuario</button>
+                <div id="userStatus" style="margin-top: 1.5rem; font-size: 0.85rem;"></div>
             </div>
 
+            <!-- PANEL CARGA (MODIFICADO: Solo visible para Admin) -->
             <div class="upload-section" id="uploadSection" style="display: none">
-                <h3 style="margin-bottom: 10px; color:white;">📤 Subir y Asignar Documento</h3>
-                <div style="margin-bottom: 15px;">
-                    <label style="color:#94a3b8; font-size:0.9rem;">Asignar tarea a:</label>
-                    <select id="selectUsuario" style="width: auto; margin-left: 10px;">
-                        <option value="todos">Cargando usuarios...</option>
+                <h3 style="margin-bottom: 1.5rem;">PROCESAR DOCUMENTO</h3>
+                <div style="margin-bottom: 2rem; background: rgba(255,255,255,0.03); padding: 0.8rem; border-radius: 50px; display: inline-block; border: 1px solid var(--border);">
+                    <label style="color: var(--text-dim); font-size: 0.75rem; margin: 0 15px;">ASIGNAR A:</label>
+                    <select id="selectUsuario" style="width: auto; background: transparent; border: none; color: var(--accent); font-weight: 700; padding: 0;">
+                        <option value="todos">Todos los Usuarios</option>
                     </select>
                 </div>
-                <input type="file" id="fileInput" accept=".pdf,.txt" style="display: none;" />
-                <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Seleccionar Archivo</button>
-                <button class="btn-upload" style="background: #22c55e; margin-left: 0.5rem" onclick="subirDocumento()">⬆ Subir a la IA</button>
-                <button id="btnCancelar" class="btn-logout" style="display:none; margin-left:10px; background:#64748b;" onclick="cancelarEnvio()">✖ Cancelar Envío</button>
-                <div class="upload-status" id="uploadStatus"></div>
+                <div style="display: flex; justify-content: center; gap: 1rem; flex-wrap: wrap;">
+                    <input type="file" id="fileInput" accept=".pdf,.txt" style="display: none;" />
+                    <button class="btn-upload" style="background: #222; color: #fff;" onclick="document.getElementById('fileInput').click()">Elegir Archivo</button>
+                    <button class="btn-upload" style="background: var(--accent); color: #000;" onclick="subirDocumento()">Iniciar Análisis</button>
+                    <button id="btnCancelar" class="btn-logout" style="display:none;" onclick="cancelarEnvio()">Cancelar</button>
+                </div>
+                <div id="uploadStatus" style="margin-top: 1.5rem; font-size: 0.85rem;"></div>
             </div>
 
-            <div class="docs-header">
-                <h2>📋 Documentos Asignados</h2>
-                <button class="btn-refresh" onclick="cargarDocumentos()">🔄 Actualizar</button>
+            <div class="docs-header" style="display: flex; justify-content: space-between; margin-top: 4rem; border-bottom: 1px solid var(--border); padding-bottom: 1.5rem; align-items: center; flex-wrap: wrap; gap: 10px;">
+                <h2 style="font-weight: 400; letter-spacing: 1px;">HISTORIAL DE ANÁLISIS</h2>
+                <button class="btn-download" style="padding: 0.5rem 1.5rem;" onclick="cargarDocumentos()">Refrescar</button>
             </div>
-            <div id="listaDocumentos"></div>
+            
+            <div id="listaDocumentos" style="margin-top: 2rem;"></div>
         </div>
     </div>
 
+    <!-- VISOR -->
     <div class="modal-overlay" id="pdfModal">
         <div class="modal-content">
-            <h3 style="color: #38bdf8; position: absolute; top: 15px; left: 20px;">👁️ Visor Seguro</h3>
-            <button class="close-modal" onclick="cerrarModal()">❌ Cerrar</button>
+            <div style="padding: 1.2rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border);">
+                <span style="color: var(--accent); font-weight: 600;">VISUALIZACIÓN</span>
+                <button class="btn-logout" style="padding: 0.4rem 1rem;" onclick="cerrarModal()">Cerrar</button>
+            </div>
             <iframe id="pdfIframe" class="pdf-frame" src=""></iframe>
         </div>
     </div>
 
     <script>
         const API = "/api";
-        let usuarioActual = null;
-        let rolActual = null;
-        let abortController = null;
+        let usuarioActual = null, rolActual = null, abortController = null;
 
         async function iniciarSesion() {
             const username = document.getElementById("inputUser").value.trim();
@@ -142,38 +287,38 @@
                 usuarioActual = data.username; rolActual = data.rol;
                 entrarAlSistema();
             } catch {
-                document.getElementById("errorMsg").textContent = "Usuario o contraseña incorrectos";
+                document.getElementById("errorMsg").textContent = "Credenciales incorrectas";
             }
         }
 
-        function entrarVisitante() {
-            usuarioActual = "visitante"; rolActual = "viewer";
-            entrarAlSistema();
-        }
+        function entrarVisitante() { usuarioActual = "invitado"; rolActual = "viewer"; entrarAlSistema(); }
 
         function entrarAlSistema() {
             document.getElementById("loginSection").style.display = "none";
             document.getElementById("appSection").style.display = "block";
-            document.getElementById("labelUsuario").textContent = `👤 ${usuarioActual} (${rolActual})`;
+            document.getElementById("labelUsuario").innerHTML = `SESIÓN: <b style="color:var(--accent)">${usuarioActual.toUpperCase()}</b>`;
+            
+            // Lógica de visibilidad por Rol (Actualizada para restringir subida solo a admin)
             if (rolActual === "admin") {
                 document.getElementById("uploadSection").style.display = "block";
                 document.getElementById("adminUsersSection").style.display = "block";
                 cargarUsuariosDestino();
+            } else if (rolActual === "editor") {
+                // Los editores ya no ven el panel de carga[cite: 2]
+                document.getElementById("uploadSection").style.display = "none";
             }
+            
             cargarDocumentos();
         }
 
-        function cerrarSesion() {
-            document.getElementById("loginSection").style.display = "flex";
-            document.getElementById("appSection").style.display = "none";
-        }
+        function cerrarSesion() { location.reload(); }
 
         async function cargarUsuariosDestino() {
             try {
                 const res = await fetch(`${API}/usuarios`);
                 const usuarios = await res.json();
                 const select = document.getElementById("selectUsuario");
-                select.innerHTML = '<option value="todos">Todos (Público)</option>';
+                select.innerHTML = '<option value="todos">Todos los Usuarios</option>';
                 usuarios.forEach(u => select.innerHTML += `<option value="${u.username}">${u.username}</option>`);
             } catch (e) { console.error("Error cargando usuarios"); }
         }
@@ -183,7 +328,7 @@
             const nuevoPassword = document.getElementById("newPassword").value.trim();
             const nuevoRol = document.getElementById("newRole").value;
             const status = document.getElementById("userStatus");
-            if(!nuevoUsername || !nuevoPassword) return status.textContent = "⚠ Llena todos los campos";
+            if(!nuevoUsername || !nuevoPassword) return status.textContent = "Campos requeridos";
 
             try {
                 const res = await fetch(`${API}/usuarios`, {
@@ -192,20 +337,20 @@
                     body: JSON.stringify({ requesterRol: rolActual, nuevoUsername, nuevoPassword, nuevoRol })
                 });
                 const data = await res.json();
-                status.style.color = res.ok ? "#f59e0b" : "#ef4444";
-                status.textContent = (res.ok ? "✅ " : "❌ ") + (data.mensaje || data.error);
+                status.style.color = res.ok ? "var(--success)" : "var(--danger)";
+                status.textContent = (res.ok ? "Registrado correctamente" : data.error);
                 if(res.ok) cargarUsuariosDestino();
-            } catch { status.textContent = "❌ Error de conexión"; }
+            } catch { status.textContent = "Error de conexión"; }
         }
 
         async function subirDocumento() {
             const fileInput = document.getElementById("fileInput");
             const status = document.getElementById("uploadStatus");
             const btnCancelar = document.getElementById("btnCancelar");
-            if (!fileInput.files[0]) return status.textContent = "⚠ Selecciona un archivo";
+            if (!fileInput.files[0]) return status.textContent = "Selecciona un archivo";
             
-            status.textContent = "⏳ Analizando con IA... por favor espera.";
-            status.style.color = "#38bdf8";
+            status.textContent = "Analizando con inteligencia artificial...";
+            status.style.color = "var(--accent)";
             btnCancelar.style.display = "inline-block";
             abortController = new AbortController();
 
@@ -219,14 +364,14 @@
                     body: formData,
                     signal: abortController.signal
                 });
-                const data = await res.json();
-                status.style.color = "#22c55e";
-                status.textContent = `✅ Listo. Nodo: ${data.registro.procesado_por}`;
+                if(!res.ok) throw new Error();
+                status.style.color = "var(--success)";
+                status.textContent = `Procesamiento exitoso`;
                 fileInput.value = "";
                 cargarDocumentos();
             } catch (err) {
-                status.style.color = (err.name === 'AbortError') ? "#f59e0b" : "#ef4444";
-                status.textContent = (err.name === 'AbortError') ? "🚫 Envío cancelado" : "❌ Error al procesar";
+                status.style.color = (err.name === 'AbortError') ? "var(--warning)" : "var(--danger)";
+                status.textContent = (err.name === 'AbortError') ? "Cancelado" : "Error en proceso";
             } finally {
                 btnCancelar.style.display = "none";
                 abortController = null;
@@ -236,7 +381,8 @@
         function cancelarEnvio() { if (abortController) abortController.abort(); }
 
         function abrirModal(nombreArchivo) {
-            document.getElementById('pdfIframe').src = `${API}/ver/${nombreArchivo}`;
+            const toolbarSuffix = (rolActual === 'viewer') ? '#toolbar=0' : '';
+            document.getElementById('pdfIframe').src = `${API}/ver/${nombreArchivo}?rol=${rolActual}${toolbarSuffix}`;
             document.getElementById('pdfModal').style.display = 'flex';
         }
 
@@ -250,27 +396,34 @@
             try {
                 const res = await fetch(`${API}/documentos?username=${usuarioActual}&rol=${rolActual}`);
                 const docs = await res.json();
+                if(docs.length === 0) {
+                    lista.innerHTML = '<p style="text-align:center; color:var(--text-dim); margin: 2rem 0;">No hay archivos en la cola</p>';
+                    return;
+                }
                 lista.innerHTML = docs.map(doc => {
                     let textoIA = (doc.resultado_ia || "").toLowerCase();
-                    let color = "verde"; let etiqueta = "Baja";
-                    if(textoIA.includes("rojo") || textoIA.includes("alta")) { color = "rojo"; etiqueta = "Alta"; }
-                    else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { color = "ambar"; etiqueta = "Media"; }
+                    let colorClass = "verde"; let etiqueta = "Baja Prioridad";
+                    
+                    if(textoIA.includes("rojo") || textoIA.includes("alta")) { colorClass = "rojo"; etiqueta = "Alta Prioridad"; }
+                    else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { colorClass = "ambar"; etiqueta = "Prioridad Media"; }
 
-                    let botones = `<button class="btn-download" style="background: #0ea5e9;" onclick="abrirModal('${doc.archivo_guardado}')">👁️ Ver</button>`;
-                    if(rolActual !== "viewer") botones += `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;
+                    let botones = `<button class="btn-download" style="border-color:var(--accent); color:var(--accent)" onclick="abrirModal('${doc.archivo_guardado}')">Ver Documento</button>`;
+                    if(rolActual !== "viewer") {
+                        botones += `<button class="btn-download" style="margin-left:10px" onclick="window.open('${API}/descargar/${doc.archivo_guardado}?rol=${rolActual}', '_blank')">Descargar</button>`;
+                    }
 
                     return `
-                    <div class="doc-card ${color}">
-                        <div class="doc-info">
-                            <div class="doc-nombre">📄 ${doc.archivo_original}</div>
-                            <span class="badge ${color}">${etiqueta} Prioridad</span>
+                    <div class="doc-card ${colorClass}">
+                        <div style="flex: 1;">
+                            <span class="badge ${colorClass}">${etiqueta}</span>
+                            <div class="doc-nombre">${doc.archivo_original.toUpperCase()}</div>
                             <div class="doc-resumen">${doc.resultado_ia}</div>
-                            <div class="doc-meta"><span>👤 Para: <b>${doc.asignado_a || 'todos'}</b></span><span>🖥️ Nodo: ${doc.procesado_por}</span></div>
+                            <div style="font-size: 0.7rem; color: var(--text-dim);">DESTINO: ${doc.asignado_a.toUpperCase()}</div>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: center;">${botones}</div>
+                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">${botones}</div>
                     </div>`;
                 }).join("");
-            } catch { lista.innerHTML = '<div class="error-msg">Error cargando historial</div>'; }
+            } catch { lista.innerHTML = 'Error al cargar datos'; }
         }
     </script>
 </body>

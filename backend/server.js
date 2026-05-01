@@ -31,7 +31,7 @@ mongoose.connect('mongodb://mongo:27017/sistema_documentos')
     .catch(err => console.error('❌ Error conectando a Mongo:', err));
 
 const usuarioSchema = new mongoose.Schema({
-    username: { type: String, required: true },
+    username: { type: String, required: true, unique: true },
     password: { type: String, required: true },
     rol: { type: String, required: true }
 });
@@ -47,6 +47,7 @@ const documentoSchema = new mongoose.Schema({
 });
 const Documento = mongoose.model('Documento', documentoSchema);
 
+// Configuración de almacenamiento
 const carpetaDocs = path.join(__dirname, 'documentos_guardados');
 if (!fs.existsSync(carpetaDocs)) fs.mkdirSync(carpetaDocs);
 
@@ -54,22 +55,12 @@ const storage = multer.diskStorage({
     destination: (req, file, cb) => cb(null, carpetaDocs),
     filename: (req, file, cb) => cb(null, Date.now() + '_' + file.originalname)
 });
-
-const upload = multer({ 
-    storage: storage,
-    fileFilter: (req, file, cb) => {
-        const ext = path.extname(file.originalname).toLowerCase();
-        if (ext === '.pdf' || ext === '.txt') {
-            cb(null, true);
-        } else {
-            cb(new Error('Solo se permiten archivos PDF o TXT'));
-        }
-    }
-});
+const upload = multer({ storage: storage });
 
 // ---------------------------------------------------------
-// 🔐 ENDPOINT: LOGIN
+// 🔐 ENDPOINTS: SEGURIDAD Y USUARIOS
 // ---------------------------------------------------------
+
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -84,9 +75,7 @@ app.post('/api/login', async (req, res) => {
     }
 });
 
-// ---------------------------------------------------------
-// 👥 ENDPOINTS: GESTIÓN DE USUARIOS
-// ---------------------------------------------------------
+// Obtener lista para el selector de asignación
 app.get('/api/usuarios', async (req, res) => {
     try {
         const usuarios = await Usuario.find({ rol: { $in: ['admin', 'editor'] } }, 'username');
@@ -96,20 +85,35 @@ app.get('/api/usuarios', async (req, res) => {
     }
 });
 
+// Crear nuevo usuario (Solo Admin)
 app.post('/api/usuarios', async (req, res) => {
     try {
         const { requesterRol, nuevoUsername, nuevoPassword, nuevoRol } = req.body;
-        if (requesterRol !== 'admin') return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
-
-        if (nuevoRol === 'admin') {
-            const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
-            if (conteoAdmins >= 10) return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 10 Administradores.' });
+        
+        // 1. Verificación de permisos: Solo admin crea usuarios
+        if (requesterRol !== 'admin') {
+            return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
         }
 
-        const existe = await Usuario.findOne({ username: nuevoUsername });
-        if (existe) return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
+        // 2. LÍMITE DE ADMINISTRADORES (Actualizado a 5 según solicitud)
+        if (nuevoRol === 'admin') {
+            const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
+            if (conteoAdmins >= 5) {
+                return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 5 Administradores.' });
+            }
+        }
 
-        const nuevoUser = new Usuario({ username: nuevoUsername, password: nuevoPassword, rol: nuevoRol });
+        // 3. Verificación de existencia
+        const existe = await Usuario.findOne({ username: nuevoUsername });
+        if (existe) return res.status(400).json({ error: 'El nombre de usuario ya existe' });
+
+        // 4. Guardado en BD
+        const nuevoUser = new Usuario({ 
+            username: nuevoUsername, 
+            password: nuevoPassword, 
+            rol: nuevoRol 
+        });
+        
         await nuevoUser.save();
         res.json({ mensaje: 'Usuario registrado con éxito' });
     } catch (error) {
@@ -118,8 +122,9 @@ app.post('/api/usuarios', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// 📋 ENDPOINTS: DOCUMENTOS E IA
+// 📋 ENDPOINTS: DOCUMENTOS Y PROTECCIÓN
 // ---------------------------------------------------------
+
 app.get('/api/documentos', async (req, res) => {
     try {
         const { username, rol } = req.query;
@@ -133,6 +138,10 @@ app.get('/api/documentos', async (req, res) => {
 });
 
 app.get('/api/descargar/:nombre', (req, res) => {
+    const { rol } = req.query;
+    if (rol === 'viewer') {
+        return res.status(403).send('Acceso denegado: Los invitados no pueden descargar.');
+    }
     res.download(path.join(carpetaDocs, req.params.nombre));
 });
 
@@ -159,15 +168,7 @@ app.post('/api/analizar', upload.single('documento'), async (req, res) => {
             textoLimpio = fs.readFileSync(req.file.path, 'utf-8');
         }
 
-        textoLimpio = textoLimpio.trim().substring(0, 3000);
-
-        const promptOficina = `Eres un asistente estricto. Tu única tarea es leer el texto delimitado por ### y devolver exactamente dos cosas:
-1. Un resumen muy corto (máximo 2 líneas).
-2. La prioridad (estrictamente la palabra Rojo, Ámbar o Verde).
-###
-${textoLimpio}
-###
-Tu respuesta:`;
+        const promptOficina = `Eres un asistente estricto. Resume en 2 líneas y asigna prioridad (Rojo, Ámbar o Verde) para este texto: ### ${textoLimpio.substring(0, 2500)} ###`;
 
         const respuestaOllama = await fetch('http://nginx/api/generate', {
             method: 'POST',
@@ -175,26 +176,23 @@ Tu respuesta:`;
             body: JSON.stringify({ model: 'llama3.2', prompt: promptOficina, stream: false })
         });
 
-        const nodoQueTrabajo = respuestaOllama.headers.get('x-nodo-ia') || 'Desconocido';
         const datosIA = await respuestaOllama.json();
 
         const nuevoRegistro = new Documento({
             archivo_original: req.file.originalname,
             archivo_guardado: req.file.filename,
-            procesado_por: nodoQueTrabajo,
             resultado_ia: datosIA.response,
             asignado_a: asignadoA
         });
 
         await nuevoRegistro.save();
-        res.json({ mensaje: 'Éxito', registro: nuevoRegistro });
+        res.json(nuevoRegistro);
     } catch (error) {
-        console.error("❌ Error:", error);
-        res.status(500).json({ error: 'Error procesando' });
+        res.status(500).json({ error: 'Error procesando documento' });
     }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = 3000;
 app.listen(PORT, () => {
     console.log(`🚀 Servidor backend corriendo en el puerto ${PORT}`);
 });
