@@ -1,0 +1,25 @@
+# ----------------------------------------------------------------------
+# 🚫 IGNORAR DEPENDENCIAS DE NODE
+# ----------------------------------------------------------------------
+# ¡Nunca subas esta carpeta! Quien baje tu código solo debe ejecutar 'npm install'
+backend/node_modules/
+
+# ----------------------------------------------------------------------
+# 🚫 IGNORAR ARCHIVOS FÍSICOS Y DE PRUEBA
+# ----------------------------------------------------------------------
+# No queremos subir los PDFs que los usuarios suben al sistema
+backend/documentos_guardados/*
+!backend/documentos_guardados/.gitkeep
+
+# No subir la base de datos local en texto (tu historial viejo)
+backend/historial.json
+
+# ----------------------------------------------------------------------
+# 🚫 IGNORAR VARIABLES DE ENTORNO Y ARCHIVOS DEL SISTEMA
+# ----------------------------------------------------------------------
+# Por si en el futuro agregas contraseñas ocultas
+.env
+
+# Archivos basura que crea Windows, Mac o Linux automáticamente
+.DS_Store
+Thumbs.db

@@ -6,5 +6,13 @@
     "fecha": "2026-04-30T14:23:58.007Z",
     "procesado_por": "192.168.50.33:11434, 192.168.50.83:11434",
     "resultado_ia": "Resumen: La IA procesa un PDF pequeño y exitosamente. \nPrioridad: Ámbar"
+  },
+  {
+    "id": 1777584334479,
+    "archivo_original": "pruebax.pdf",
+    "archivo_guardado": "1777584293722_pruebax.pdf",
+    "fecha": "2026-04-30T21:25:34.479Z",
+    "procesado_por": "192.168.1.10:11434",
+    "resultado_ia": "Resumen: Prueba con una miniatura de PDF para evaluar la arquitectura.\nPrioridad: Ámbar."
   }
 ]

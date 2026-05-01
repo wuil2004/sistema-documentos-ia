@@ -1,6 +1,16 @@
 version: '3.8'
 
 services:
+  # 🗄️ NUEVO: Base de Datos MongoDB
+  mongo:
+    image: mongo:latest
+    container_name: mongodb_docs
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    restart: always
+
   # 1. Tu servidor Node.js
   backend:
     build: ./backend
@@ -11,10 +21,11 @@ services:
       - NODE_ENV=development
     volumes:
       - ./backend/documentos_guardados:/usr/src/app/documentos_guardados
-      - ./backend/historial.json:/usr/src/app/historial.json
+    depends_on:
+      - mongo
     restart: always
 
-  # 2. El Balanceador de Carga (Director de Orquesta)
+  # 2. El Balanceador de Carga
   nginx:
     image: nginx:alpine
     container_name: nginx_balanceador
@@ -25,3 +36,7 @@ services:
     depends_on:
       - backend
     restart: always
+
+# Le decimos a Docker que guarde los datos de Mongo en el disco duro para no perderlos si se apaga
+volumes:
+  mongo_data:

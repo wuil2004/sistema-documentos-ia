@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sistema de Documentos Distribuido</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: "Segoe UI", sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+        .navbar { background: #1e293b; padding: 1rem 2rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; }
+        .navbar h1 { font-size: 1.3rem; color: #38bdf8; }
+        .navbar span { font-size: 0.9rem; color: #94a3b8; }
+        .btn-logout { background: #ef4444; color: white; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+        .login-container { display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .login-box { background: #1e293b; padding: 2.5rem; border-radius: 12px; width: 360px; border: 1px solid #334155; }
+        .login-box h2 { text-align: center; margin-bottom: 1.5rem; color: #38bdf8; font-size: 1.4rem; }
+        .form-group { margin-bottom: 1rem; }
+        .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; color: #94a3b8; }
+        .form-group input { width: 100%; padding: 0.6rem 0.9rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; }
+        .btn-primary { width: 100%; padding: 0.75rem; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 0.5rem; }
+        .btn-primary:hover { background: #7dd3fc; }
+        .btn-visitor { width: 100%; padding: 0.6rem; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; cursor: pointer; margin-top: 0.5rem; }
+        .error-msg { color: #ef4444; font-size: 0.85rem; text-align: center; margin-top: 0.5rem; }
+        .main-container { padding: 2rem; max-width: 1100px; margin: 0 auto; }
+        .upload-section { background: #1e293b; border: 2px dashed #334155; border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 2rem; }
+        .btn-upload { background: #38bdf8; color: #0f172a; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .upload-status { margin-top: 1rem; font-size: 0.9rem; color: #94a3b8; }
+        .docs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+        .btn-refresh { background: #334155; color: #e2e8f0; border: none; padding: 0.4rem 1rem; border-radius: 6px; cursor: pointer; }
+        .doc-card { background: #1e293b; border-radius: 10px; padding: 1.2rem 1.5rem; margin-bottom: 1rem; border-left: 5px solid #334155; display: flex; justify-content: space-between; gap: 1rem; }
+        .doc-card.rojo { border-left-color: #ef4444; }
+        .doc-card.ambar { border-left-color: #f59e0b; }
+        .doc-card.verde { border-left-color: #22c55e; }
+        .doc-info { flex: 1; }
+        .doc-nombre { font-weight: bold; font-size: 1rem; margin-bottom: 0.3rem; }
+        .doc-resumen { font-size: 0.85rem; color: #94a3b8; margin-bottom: 0.5rem; line-height: 1.4; white-space: pre-wrap; }
+        .doc-meta { font-size: 0.75rem; color: #64748b; display: flex; gap: 1rem; flex-wrap: wrap; }
+        .badge { display: inline-block; padding: 0.2rem 0.7rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold; margin-bottom: 0.5rem; }
+        .badge.rojo { background: #7f1d1d; color: #fca5a5; }
+        .badge.ambar { background: #78350f; color: #fcd34d; }
+        .badge.verde { background: #14532d; color: #86efac; }
+        .btn-download { background: #334155; color: #e2e8f0; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
+        .workers-status { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
+        .worker-badge { background: #14532d; color: #86efac; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem; }
+        select { background: #0f172a; color: white; border: 1px solid #334155; padding: 0.5rem; border-radius: 6px; margin-bottom: 1rem;}
+    </style>
+</head>
+<body>
+    <div class="login-container" id="loginSection">
+        <div class="login-box">
+            <h2>📂 Sistema Distribuido</h2>
+            <div class="form-group"><label>Usuario</label><input type="text" id="inputUser" placeholder="admin" /></div>
+            <div class="form-group"><label>Contraseña</label><input type="password" id="inputPass" placeholder="123" /></div>
+            <button class="btn-primary" onclick="iniciarSesion()">Iniciar sesión</button>
+            <button class="btn-visitor" onclick="entrarVisitante()">👁️ Entrar como visitante</button>
+            <p class="error-msg" id="errorMsg"></p>
+        </div>
+    </div>
+
+    <div id="appSection" style="display: none">
+        <div class="navbar">
+            <h1>📂 Nginx + IA Cluster</h1>
+            <span id="labelUsuario"></span>
+            <button class="btn-logout" onclick="cerrarSesion()">Salir</button>
+        </div>
+        <div class="main-container">
+            <div class="workers-status">
+                <span class="worker-badge">🌐 Balanceador Nginx: Activo</span>
+                <span class="worker-badge">🤖 Clúster Ollama: Conectado</span>
+            </div>
+
+            <!-- SECCIÓN EXCLUSIVA DEL ADMIN -->
+            <div class="upload-section" id="uploadSection" style="display: none">
+                <h3 style="margin-bottom: 10px; color:white;">📤 Subir y Asignar Documento</h3>
+                
+                <label style="color:#94a3b8; font-size:0.9rem;">Asignar tarea a:</label>
+                <select id="selectUsuario">
+                    <option value="todos">Todos (Público)</option>
+                    <option value="williams">Williams</option>
+                    <option value="abril">Abril</option>
+                </select>
+                <br>
+
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
+                <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
+                <button class="btn-upload" style="background: #22c55e; margin-left: 0.5rem" onclick="subirDocumento()">⬆ Subir a la IA</button>
+                <div class="upload-status" id="uploadStatus"></div>
+            </div>
+
+            <div class="docs-header">
+                <h2>📋 Documentos Asignados</h2>
+                <button class="btn-refresh" onclick="cargarDocumentos()">🔄 Actualizar</button>
+            </div>
+            <div id="listaDocumentos"></div>
+        </div>
+    </div>
+
+    <script>
+        const API = "/api";
+        let usuarioActual = null;
+        let rolActual = null;
+
+        async function iniciarSesion() {
+            const username = document.getElementById("inputUser").value.trim();
+            const password = document.getElementById("inputPass").value;
+            try {
+                const res = await fetch(`${API}/login`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password }),
+                });
+                if (!res.ok) throw new Error();
+                const data = await res.json();
+                usuarioActual = data.username; rolActual = data.rol;
+                entrarAlSistema();
+            } catch {
+                document.getElementById("errorMsg").textContent = "Usuario o contraseña incorrectos";
+            }
+        }
+
+        function entrarVisitante() {
+            usuarioActual = "visitante"; rolActual = "viewer";
+            entrarAlSistema();
+        }
+
+        function entrarAlSistema() {
+            document.getElementById("loginSection").style.display = "none";
+            document.getElementById("appSection").style.display = "block";
+            document.getElementById("labelUsuario").textContent = `👤 ${usuarioActual} (${rolActual})`;
+            
+            // LÓGICA: SOLO el admin puede subir y asignar
+            document.getElementById("uploadSection").style.display = (rolActual === "admin") ? "block" : "none";
+            cargarDocumentos();
+        }
+
+        function cerrarSesion() {
+            document.getElementById("loginSection").style.display = "flex";
+            document.getElementById("appSection").style.display = "none";
+        }
+
+        async function subirDocumento() {
+            const fileInput = document.getElementById("fileInput");
+            const status = document.getElementById("uploadStatus");
+            if (!fileInput.files[0]) return status.textContent = "⚠ Selecciona un archivo";
+            
+            status.textContent = "⏳ Analizando en el clúster... por favor espera.";
+            status.style.color = "#38bdf8";
+
+            const formData = new FormData();
+            formData.append("documento", fileInput.files[0]); 
+            formData.append("asignado_a", document.getElementById("selectUsuario").value); // Mandamos a quién le toca
+
+            try {
+                const res = await fetch(`${API}/analizar`, { method: "POST", body: formData });
+                const data = await res.json();
+                status.style.color = "#22c55e";
+                status.textContent = `✅ Listo. Analizado por nodo: ${data.registro.procesado_por}`;
+                fileInput.value = "";
+                cargarDocumentos();
+            } catch {
+                status.style.color = "#ef4444";
+                status.textContent = "❌ Error al procesar";
+            }
+        }
+
+        async function cargarDocumentos() {
+            const lista = document.getElementById("listaDocumentos");
+            try {
+                // Le decimos al backend quiénes somos para que nos dé solo los nuestros
+                const res = await fetch(`${API}/documentos?username=${usuarioActual}&rol=${rolActual}`);
+                const docs = await res.json();
+                
+                lista.innerHTML = docs.reverse().map(doc => {
+                    let textoIA = (doc.resultado_ia || "").toLowerCase();
+                    let color = "verde"; let etiqueta = "Baja";
+                    if(textoIA.includes("rojo") || textoIA.includes("alta")) { color = "rojo"; etiqueta = "Alta"; }
+                    else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { color = "ambar"; etiqueta = "Media"; }
+
+                    // LÓGICA: Si es visitante (viewer), ocultamos el botón de descarga
+                    let botonDescarga = "";
+                    if(rolActual !== "viewer") {
+                        botonDescarga = `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;
+                    }
+
+                    return `
+                    <div class="doc-card ${color}">
+                    <div class="doc-info">
+                        <div class="doc-nombre">📄 ${doc.archivo_original}</div>
+                        <span class="badge ${color}">${etiqueta} Prioridad</span>
+                        <div class="doc-resumen">${doc.resultado_ia}</div>
+                        <div class="doc-meta">
+                        <span>👤 Para: <b>${doc.asignado_a || 'todos'}</b></span>
+                        <span>🖥️ Nodo: ${doc.procesado_por}</span>
+                        </div>
+                    </div>
+                    ${botonDescarga}
+                    </div>`;
+                }).join("");
+            } catch {
+                lista.innerHTML = '<div class="error-msg">Error cargando historial</div>';
+            }
+        }
+    </script>
+</body>
+</html>
