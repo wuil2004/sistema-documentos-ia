@@ -2,8 +2,8 @@ const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-extraction');
 const cors = require('cors');
-const fs = require('fs');     
-const path = require('path'); 
+const fs = require('fs');
+const path = require('path');
 const mongoose = require('mongoose');
 
 const app = express();
@@ -43,7 +43,7 @@ const documentoSchema = new mongoose.Schema({
     fecha: { type: Date, default: Date.now },
     procesado_por: String,
     resultado_ia: String,
-    asignado_a: String // <--- NUEVO: ¿A quién le toca este doc?
+    asignado_a: String
 });
 const Documento = mongoose.model('Documento', documentoSchema);
 
@@ -56,6 +56,9 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage: storage });
 
+// ---------------------------------------------------------
+// 🔐 ENDPOINT: LOGIN
+// ---------------------------------------------------------
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
@@ -71,20 +74,60 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// 📋 ENDPOINT MODIFICADO: FILTRAR POR USUARIO
+// 👥 ENDPOINTS: GESTIÓN DE USUARIOS (NUEVO)
+// ---------------------------------------------------------
+// Obtener la lista de usuarios (para el menú desplegable)
+app.get('/api/usuarios', async (req, res) => {
+    try {
+        const usuarios = await Usuario.find({ rol: { $in: ['admin', 'editor'] } }, 'username');
+        res.json(usuarios);
+    } catch (error) {
+        res.status(500).json({ error: 'Error obteniendo usuarios' });
+    }
+});
+
+// Crear un nuevo usuario con límite de seguridad de 10
+// Crear un nuevo usuario (Candado SOLO para Administradores)
+app.post('/api/usuarios', async (req, res) => {
+    try {
+        const { requesterRol, nuevoUsername, nuevoPassword, nuevoRol } = req.body;
+
+        if (requesterRol !== 'admin') {
+            return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
+        }
+
+        // LÍMITE DE SEGURIDAD CORREGIDO: Solo contamos a los 'admin'
+        if (nuevoRol === 'admin') {
+            const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
+            if (conteoAdmins >= 10) {
+                return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 10 Administradores.' });
+            }
+        }
+
+        const existe = await Usuario.findOne({ username: nuevoUsername });
+        if (existe) {
+            return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
+        }
+
+        const nuevoUser = new Usuario({ username: nuevoUsername, password: nuevoPassword, rol: nuevoRol });
+        await nuevoUser.save();
+
+        res.json({ mensaje: 'Usuario registrado con éxito' });
+    } catch (error) {
+        res.status(500).json({ error: 'Error al crear el usuario' });
+    }
+});
+
+// ---------------------------------------------------------
+// 📋 ENDPOINTS: DOCUMENTOS E IA
 // ---------------------------------------------------------
 app.get('/api/documentos', async (req, res) => {
     try {
-        const { username, rol } = req.query; // Recibimos quién es el que pregunta
+        const { username, rol } = req.query;
         let filtro = {};
-
-        // LÓGICA DE NEGOCIO:
-        // Si es editor (williams, abril), SOLO ve los que están a su nombre o a 'todos'
         if (rol === 'editor') {
             filtro = { asignado_a: { $in: [username, 'todos'] } };
         }
-        // Si es admin o viewer, el filtro se queda vacío (ven todos)
-
         const historial = await Documento.find(filtro).sort({ fecha: -1 });
         res.json(historial);
     } catch (error) {
@@ -96,16 +139,12 @@ app.get('/api/descargar/:nombre', (req, res) => {
     res.download(path.join(carpetaDocs, req.params.nombre));
 });
 
-// ---------------------------------------------------------
-// 🚀 ENDPOINT MODIFICADO: GUARDAR A QUIÉN SE LE ASIGNA
-// ---------------------------------------------------------
 app.post('/api/analizar', upload.single('documento'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: 'Falta PDF' });
+        const asignadoA = req.body.asignado_a || 'todos';
 
-        const asignadoA = req.body.asignado_a || 'todos'; // Recibimos a quién va dirigido
-
-        const pdfBuffer = fs.readFileSync(req.file.path); 
+        const pdfBuffer = fs.readFileSync(req.file.path);
         const pdfData = await pdfParse(pdfBuffer);
         const textoLimpio = pdfData.text.trim().substring(0, 3000);
 
@@ -117,13 +156,13 @@ PROHIBIDO devolver el texto original. PROHIBIDO dar explicaciones.
 ${textoLimpio}
 ###
 Tu respuesta:`;
-        
+
         const respuestaOllama = await fetch('http://nginx/api/generate', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ model: 'llama3.2', prompt: promptOficina, stream: false })
         });
-        
+
         const nodoQueTrabajo = respuestaOllama.headers.get('x-nodo-ia') || 'Desconocido';
         const datosIA = await respuestaOllama.json();
 
@@ -132,9 +171,9 @@ Tu respuesta:`;
             archivo_guardado: req.file.filename,
             procesado_por: nodoQueTrabajo,
             resultado_ia: datosIA.response,
-            asignado_a: asignadoA // <--- Lo guardamos en la Base de Datos
+            asignado_a: asignadoA
         });
-        
+
         await nuevoRegistro.save();
 
         res.json({ mensaje: 'Éxito', registro: nuevoRegistro });

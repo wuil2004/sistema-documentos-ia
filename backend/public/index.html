@@ -16,13 +16,14 @@
         .login-box h2 { text-align: center; margin-bottom: 1.5rem; color: #38bdf8; font-size: 1.4rem; }
         .form-group { margin-bottom: 1rem; }
         .form-group label { display: block; margin-bottom: 0.4rem; font-size: 0.85rem; color: #94a3b8; }
-        .form-group input { width: 100%; padding: 0.6rem 0.9rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; }
+        .form-group input, select { width: 100%; padding: 0.6rem 0.9rem; background: #0f172a; border: 1px solid #334155; border-radius: 6px; color: #e2e8f0; }
         .btn-primary { width: 100%; padding: 0.75rem; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 0.5rem; }
         .btn-primary:hover { background: #7dd3fc; }
         .btn-visitor { width: 100%; padding: 0.6rem; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; cursor: pointer; margin-top: 0.5rem; }
         .error-msg { color: #ef4444; font-size: 0.85rem; text-align: center; margin-top: 0.5rem; }
         .main-container { padding: 2rem; max-width: 1100px; margin: 0 auto; }
         .upload-section { background: #1e293b; border: 2px dashed #334155; border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 2rem; }
+        .admin-panel { border-color: #f59e0b; }
         .btn-upload { background: #38bdf8; color: #0f172a; border: none; padding: 0.6rem 1.5rem; border-radius: 6px; font-weight: bold; cursor: pointer; }
         .upload-status { margin-top: 1rem; font-size: 0.9rem; color: #94a3b8; }
         .docs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
@@ -42,7 +43,8 @@
         .btn-download { background: #334155; color: #e2e8f0; border: none; padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer; }
         .workers-status { display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap; }
         .worker-badge { background: #14532d; color: #86efac; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem; }
-        select { background: #0f172a; color: white; border: 1px solid #334155; padding: 0.5rem; border-radius: 6px; margin-bottom: 1rem;}
+        .inline-inputs { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
+        .inline-inputs input, .inline-inputs select { width: auto; min-width: 150px; }
     </style>
 </head>
 <body>
@@ -69,17 +71,33 @@
                 <span class="worker-badge">🤖 Clúster Ollama: Conectado</span>
             </div>
 
-            <!-- SECCIÓN EXCLUSIVA DEL ADMIN -->
+            <!-- PANEL DE CONTROL DE USUARIOS (Solo Admin) -->
+            <!-- PANEL DE CONTROL DE USUARIOS (Solo Admin) -->
+            <div class="upload-section admin-panel" id="adminUsersSection" style="display: none">
+                <h3 style="margin-bottom: 5px; color:#f59e0b;">👥 Panel de Administrador: Registro</h3>
+                <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios y Visitantes ilimitados.</p>
+                
+                <div class="inline-inputs">
+                    <input type="text" id="newUsername" placeholder="Nuevo Usuario">
+                    <input type="password" id="newPassword" placeholder="Contraseña">
+                    <select id="newRole">
+                        <option value="editor">Usuario normal (Ilimitado)</option>
+                        <option value="admin">Administrador (Máximo 10)</option>
+                    </select>
+                </div>
+                <button class="btn-upload" style="background: #f59e0b; color: white;" onclick="crearUsuario()">+ Registrar Usuario</button>
+                <div id="userStatus" style="margin-top: 1rem; font-size: 0.9rem; font-weight: bold;"></div>
+            </div>
+
+            <!-- SECCIÓN DE SUBIDA Y ASIGNACIÓN (Solo Admin) -->
             <div class="upload-section" id="uploadSection" style="display: none">
                 <h3 style="margin-bottom: 10px; color:white;">📤 Subir y Asignar Documento</h3>
-                
-                <label style="color:#94a3b8; font-size:0.9rem;">Asignar tarea a:</label>
-                <select id="selectUsuario">
-                    <option value="todos">Todos (Público)</option>
-                    <option value="williams">Williams</option>
-                    <option value="abril">Abril</option>
-                </select>
-                <br>
+                <div style="margin-bottom: 15px;">
+                    <label style="color:#94a3b8; font-size:0.9rem;">Asignar tarea a:</label>
+                    <select id="selectUsuario" style="width: auto; margin-left: 10px;">
+                        <option value="todos">Cargando usuarios...</option>
+                    </select>
+                </div>
 
                 <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
                 <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
@@ -128,14 +146,73 @@
             document.getElementById("appSection").style.display = "block";
             document.getElementById("labelUsuario").textContent = `👤 ${usuarioActual} (${rolActual})`;
             
-            // LÓGICA: SOLO el admin puede subir y asignar
-            document.getElementById("uploadSection").style.display = (rolActual === "admin") ? "block" : "none";
+            // LÓGICA DE PERMISOS
+            if (rolActual === "admin") {
+                document.getElementById("uploadSection").style.display = "block";
+                document.getElementById("adminUsersSection").style.display = "block";
+                cargarUsuariosDestino(); // Carga la lista dinámica para asignar
+            } else {
+                document.getElementById("uploadSection").style.display = "none";
+                document.getElementById("adminUsersSection").style.display = "none";
+            }
+            
             cargarDocumentos();
         }
 
         function cerrarSesion() {
             document.getElementById("loginSection").style.display = "flex";
             document.getElementById("appSection").style.display = "none";
+        }
+
+        // LÓGICA NUEVA: Obtener la lista de usuarios desde la Base de Datos
+        async function cargarUsuariosDestino() {
+            try {
+                const res = await fetch(`${API}/usuarios`);
+                const usuarios = await res.json();
+                const select = document.getElementById("selectUsuario");
+                select.innerHTML = '<option value="todos">Todos (Público)</option>';
+                usuarios.forEach(u => {
+                    select.innerHTML += `<option value="${u.username}">${u.username}</option>`;
+                });
+            } catch (e) {
+                console.error("Error cargando la lista de usuarios");
+            }
+        }
+
+        // LÓGICA NUEVA: Crear un usuario y validar el límite de 10
+        async function crearUsuario() {
+            const nuevoUsername = document.getElementById("newUsername").value.trim();
+            const nuevoPassword = document.getElementById("newPassword").value.trim();
+            const nuevoRol = document.getElementById("newRole").value;
+            const status = document.getElementById("userStatus");
+
+            if(!nuevoUsername || !nuevoPassword) {
+                status.style.color = "#ef4444";
+                return status.textContent = "⚠ Llena todos los campos del nuevo usuario";
+            }
+
+            try {
+                const res = await fetch(`${API}/usuarios`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ requesterRol: rolActual, nuevoUsername, nuevoPassword, nuevoRol })
+                });
+                const data = await res.json();
+
+                if(!res.ok) {
+                    status.style.color = "#ef4444";
+                    status.textContent = "❌ " + data.error;
+                } else {
+                    status.style.color = "#f59e0b";
+                    status.textContent = "✅ " + data.mensaje;
+                    document.getElementById("newUsername").value = "";
+                    document.getElementById("newPassword").value = "";
+                    cargarUsuariosDestino(); // Actualiza la lista desplegable al instante
+                }
+            } catch {
+                status.style.color = "#ef4444";
+                status.textContent = "❌ Error al conectar con el servidor";
+            }
         }
 
         async function subirDocumento() {
@@ -148,7 +225,7 @@
 
             const formData = new FormData();
             formData.append("documento", fileInput.files[0]); 
-            formData.append("asignado_a", document.getElementById("selectUsuario").value); // Mandamos a quién le toca
+            formData.append("asignado_a", document.getElementById("selectUsuario").value); 
 
             try {
                 const res = await fetch(`${API}/analizar`, { method: "POST", body: formData });
@@ -166,7 +243,6 @@
         async function cargarDocumentos() {
             const lista = document.getElementById("listaDocumentos");
             try {
-                // Le decimos al backend quiénes somos para que nos dé solo los nuestros
                 const res = await fetch(`${API}/documentos?username=${usuarioActual}&rol=${rolActual}`);
                 const docs = await res.json();
                 
@@ -176,7 +252,6 @@
                     if(textoIA.includes("rojo") || textoIA.includes("alta")) { color = "rojo"; etiqueta = "Alta"; }
                     else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { color = "ambar"; etiqueta = "Media"; }
 
-                    // LÓGICA: Si es visitante (viewer), ocultamos el botón de descarga
                     let botonDescarga = "";
                     if(rolActual !== "viewer") {
                         botonDescarga = `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;
