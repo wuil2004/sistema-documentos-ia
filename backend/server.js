@@ -74,9 +74,8 @@ app.post('/api/login', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// 👥 ENDPOINTS: GESTIÓN DE USUARIOS (NUEVO)
+// 👥 ENDPOINTS: GESTIÓN DE USUARIOS
 // ---------------------------------------------------------
-// Obtener la lista de usuarios (para el menú desplegable)
 app.get('/api/usuarios', async (req, res) => {
     try {
         const usuarios = await Usuario.find({ rol: { $in: ['admin', 'editor'] } }, 'username');
@@ -86,8 +85,6 @@ app.get('/api/usuarios', async (req, res) => {
     }
 });
 
-// Crear un nuevo usuario con límite de seguridad de 10
-// Crear un nuevo usuario (Candado SOLO para Administradores)
 app.post('/api/usuarios', async (req, res) => {
     try {
         const { requesterRol, nuevoUsername, nuevoPassword, nuevoRol } = req.body;
@@ -96,7 +93,6 @@ app.post('/api/usuarios', async (req, res) => {
             return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
         }
 
-        // LÍMITE DE SEGURIDAD CORREGIDO: Solo contamos a los 'admin'
         if (nuevoRol === 'admin') {
             const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
             if (conteoAdmins >= 10) {
@@ -137,6 +133,18 @@ app.get('/api/documentos', async (req, res) => {
 
 app.get('/api/descargar/:nombre', (req, res) => {
     res.download(path.join(carpetaDocs, req.params.nombre));
+});
+
+// ---------------------------------------------------------
+// 👁️ ENDPOINT: VER PDF (Visor Seguro)
+// ---------------------------------------------------------
+app.get('/api/ver/:nombre', (req, res) => {
+    const rutaArchivo = path.join(carpetaDocs, req.params.nombre);
+    if (fs.existsSync(rutaArchivo)) {
+        res.sendFile(rutaArchivo);
+    } else {
+        res.status(404).send('Archivo no encontrado');
+    }
 });
 
 app.post('/api/analizar', upload.single('documento'), async (req, res) => {

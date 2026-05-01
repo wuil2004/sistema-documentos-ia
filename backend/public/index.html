@@ -45,6 +45,13 @@
         .worker-badge { background: #14532d; color: #86efac; padding: 0.3rem 0.8rem; border-radius: 999px; font-size: 0.78rem; }
         .inline-inputs { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
         .inline-inputs input, .inline-inputs select { width: auto; min-width: 150px; }
+        
+        /* ESTILOS DE LA VENTANA EMERGENTE (MODAL) */
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
+        .modal-content { background: #1e293b; padding: 1.5rem; border-radius: 12px; width: 85%; height: 85vh; position: relative; border: 1px solid #334155; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        .close-modal { position: absolute; top: 15px; right: 20px; background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
+        .close-modal:hover { background: #dc2626; }
+        .pdf-frame { flex-grow: 1; width: 100%; border: none; margin-top: 2.5rem; border-radius: 8px; background: #fff; }
     </style>
 </head>
 <body>
@@ -72,10 +79,9 @@
             </div>
 
             <!-- PANEL DE CONTROL DE USUARIOS (Solo Admin) -->
-            <!-- PANEL DE CONTROL DE USUARIOS (Solo Admin) -->
             <div class="upload-section admin-panel" id="adminUsersSection" style="display: none">
                 <h3 style="margin-bottom: 5px; color:#f59e0b;">👥 Panel de Administrador: Registro</h3>
-                <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios y Visitantes ilimitados.</p>
+                <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios normales ilimitados.</p>
                 
                 <div class="inline-inputs">
                     <input type="text" id="newUsername" placeholder="Nuevo Usuario">
@@ -113,6 +119,15 @@
         </div>
     </div>
 
+    <!-- VENTANA EMERGENTE PARA LEER EL PDF -->
+    <div class="modal-overlay" id="pdfModal">
+        <div class="modal-content">
+            <h3 style="color: #38bdf8; position: absolute; top: 15px; left: 20px;">👁️ Visor Seguro de Documentos</h3>
+            <button class="close-modal" onclick="cerrarModal()">❌ Cerrar Visor</button>
+            <iframe id="pdfIframe" class="pdf-frame" src=""></iframe>
+        </div>
+    </div>
+
     <script>
         const API = "/api";
         let usuarioActual = null;
@@ -146,11 +161,10 @@
             document.getElementById("appSection").style.display = "block";
             document.getElementById("labelUsuario").textContent = `👤 ${usuarioActual} (${rolActual})`;
             
-            // LÓGICA DE PERMISOS
             if (rolActual === "admin") {
                 document.getElementById("uploadSection").style.display = "block";
                 document.getElementById("adminUsersSection").style.display = "block";
-                cargarUsuariosDestino(); // Carga la lista dinámica para asignar
+                cargarUsuariosDestino();
             } else {
                 document.getElementById("uploadSection").style.display = "none";
                 document.getElementById("adminUsersSection").style.display = "none";
@@ -164,7 +178,6 @@
             document.getElementById("appSection").style.display = "none";
         }
 
-        // LÓGICA NUEVA: Obtener la lista de usuarios desde la Base de Datos
         async function cargarUsuariosDestino() {
             try {
                 const res = await fetch(`${API}/usuarios`);
@@ -179,7 +192,6 @@
             }
         }
 
-        // LÓGICA NUEVA: Crear un usuario y validar el límite de 10
         async function crearUsuario() {
             const nuevoUsername = document.getElementById("newUsername").value.trim();
             const nuevoPassword = document.getElementById("newPassword").value.trim();
@@ -207,7 +219,7 @@
                     status.textContent = "✅ " + data.mensaje;
                     document.getElementById("newUsername").value = "";
                     document.getElementById("newPassword").value = "";
-                    cargarUsuariosDestino(); // Actualiza la lista desplegable al instante
+                    cargarUsuariosDestino();
                 }
             } catch {
                 status.style.color = "#ef4444";
@@ -240,6 +252,17 @@
             }
         }
 
+        // Funciones del Modal
+        function abrirModal(nombreArchivo) {
+            document.getElementById('pdfIframe').src = `${API}/ver/${nombreArchivo}#toolbar=0&navpanes=0`;
+            document.getElementById('pdfModal').style.display = 'flex';
+        }
+
+        function cerrarModal() {
+            document.getElementById('pdfModal').style.display = 'none';
+            document.getElementById('pdfIframe').src = "";
+        }
+
         async function cargarDocumentos() {
             const lista = document.getElementById("listaDocumentos");
             try {
@@ -252,23 +275,26 @@
                     if(textoIA.includes("rojo") || textoIA.includes("alta")) { color = "rojo"; etiqueta = "Alta"; }
                     else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { color = "ambar"; etiqueta = "Media"; }
 
-                    let botonDescarga = "";
+                    let botonesAccion = `<button class="btn-download" style="background: #0ea5e9;" onclick="abrirModal('${doc.archivo_guardado}')">👁️ Ver PDF</button>`;
+
                     if(rolActual !== "viewer") {
-                        botonDescarga = `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;
+                        botonesAccion += `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;
                     }
 
                     return `
                     <div class="doc-card ${color}">
-                    <div class="doc-info">
-                        <div class="doc-nombre">📄 ${doc.archivo_original}</div>
-                        <span class="badge ${color}">${etiqueta} Prioridad</span>
-                        <div class="doc-resumen">${doc.resultado_ia}</div>
-                        <div class="doc-meta">
-                        <span>👤 Para: <b>${doc.asignado_a || 'todos'}</b></span>
-                        <span>🖥️ Nodo: ${doc.procesado_por}</span>
+                        <div class="doc-info">
+                            <div class="doc-nombre">📄 ${doc.archivo_original}</div>
+                            <span class="badge ${color}">${etiqueta} Prioridad</span>
+                            <div class="doc-resumen">${doc.resultado_ia}</div>
+                            <div class="doc-meta">
+                                <span>👤 Para: <b>${doc.asignado_a || 'todos'}</b></span>
+                                <span>🖥️ Nodo: ${doc.procesado_por}</span>
+                            </div>
                         </div>
-                    </div>
-                    ${botonDescarga}
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem; justify-content: center;">
+                            ${botonesAccion}
+                        </div>
                     </div>`;
                 }).join("");
             } catch {
