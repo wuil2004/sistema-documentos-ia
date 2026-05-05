@@ -30,10 +30,13 @@ mongoose.connect('mongodb://mongo:27017/sistema_documentos')
     })
     .catch(err => console.error('❌ Error conectando a Mongo:', err));
 
+// 🚨 ACTUALIZACIÓN DE ESQUEMA DE SEGURIDAD (NUEVO)
 const usuarioSchema = new mongoose.Schema({
     username: { type: String, required: true },
     password: { type: String, required: true },
-    rol: { type: String, required: true }
+    rol: { type: String, required: true },
+    ultimo_latido: { type: Date, default: null }, // Para saber cuándo fue su última señal
+    token_sesion: { type: String, default: null } // Para identificar qué computadora tiene la cuenta
 });
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
@@ -57,19 +60,81 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // ---------------------------------------------------------
-// 🔐 ENDPOINT: LOGIN
+// 🔐 ENDPOINT: LOGIN (MODIFICADO PARA CONCURRENCIA)
 // ---------------------------------------------------------
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const usuarioEncontrado = await Usuario.findOne({ username, password });
-        if (usuarioEncontrado) {
-            res.json({ ok: true, username: usuarioEncontrado.username, rol: usuarioEncontrado.rol });
-        } else {
-            res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
+        
+        if (!usuarioEncontrado) {
+            return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
         }
+
+        // LÓGICA DE PROTECCIÓN DE CUENTAS (Excluimos al visitante/viewer)
+        if (usuarioEncontrado.rol !== 'viewer') {
+            const ahora = Date.now();
+            const limiteActividad = 15000; // 15 segundos de tolerancia
+            
+            // Si tiene un latido registrado y fue hace menos de 15 segundos = Alguien lo está usando
+            if (usuarioEncontrado.ultimo_latido && (ahora - new Date(usuarioEncontrado.ultimo_latido).getTime() < limiteActividad)) {
+                return res.status(403).json({ 
+                    ok: false, 
+                    error: 'Acceso denegado: El usuario ya tiene una sesión activa en otro dispositivo.' 
+                });
+            }
+        }
+
+        // Si la cuenta está libre, generamos un candado (token) único para esta nueva PC
+        const token_sesion = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        usuarioEncontrado.token_sesion = token_sesion;
+        usuarioEncontrado.ultimo_latido = Date.now();
+        await usuarioEncontrado.save();
+
+        res.json({ ok: true, username: usuarioEncontrado.username, rol: usuarioEncontrado.rol, token_sesion });
+        
     } catch (error) {
         res.status(500).json({ error: 'Error en base de datos' });
+    }
+});
+
+// ---------------------------------------------------------
+// 💓 NUEVO ENDPOINT: RECIBIR LATIDOS DE MANTENIMIENTO
+// ---------------------------------------------------------
+app.post('/api/latido', async (req, res) => {
+    try {
+        const { username, token_sesion } = req.body;
+        if (!username || !token_sesion) return res.status(400).json({ error: "Faltan datos de sesión" });
+
+        const usuarioEncontrado = await Usuario.findOne({ username });
+        if (!usuarioEncontrado) return res.status(404).json({ error: "Usuario no existe" });
+
+        // Si el token que manda la PC no es igual al de la BD, significa que se le dio acceso a otra máquina
+        if (usuarioEncontrado.token_sesion !== token_sesion) {
+            return res.status(403).json({ error: "Sesión robada o caducada" });
+        }
+
+        // Si todo coincide, actualizamos su última hora de vida
+        usuarioEncontrado.ultimo_latido = Date.now();
+        await usuarioEncontrado.save();
+
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ error: "Error procesando latido" });
+    }
+});
+
+// ---------------------------------------------------------
+// 🚪 NUEVO ENDPOINT: CIERRE MANUAL DE SESIÓN
+// ---------------------------------------------------------
+app.post('/api/logout', async (req, res) => {
+    try {
+        const { username } = req.body;
+        // Limpiamos los datos para liberar la cuenta inmediatamente
+        await Usuario.findOneAndUpdate({ username }, { ultimo_latido: null, token_sesion: null });
+        res.json({ ok: true });
+    } catch (error) {
+        res.status(500).json({ error: "Error al cerrar sesión" });
     }
 });
 

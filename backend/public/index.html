@@ -20,7 +20,7 @@
         .btn-primary { width: 100%; padding: 0.75rem; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; margin-top: 0.5rem; }
         .btn-primary:hover { background: #7dd3fc; }
         .btn-visitor { width: 100%; padding: 0.6rem; background: transparent; color: #94a3b8; border: 1px solid #334155; border-radius: 6px; cursor: pointer; margin-top: 0.5rem; }
-        .error-msg { color: #ef4444; font-size: 0.85rem; text-align: center; margin-top: 0.5rem; }
+        .error-msg { color: #ef4444; font-size: 0.85rem; text-align: center; margin-top: 0.5rem; font-weight: bold; }
         .main-container { padding: 2rem; max-width: 1100px; margin: 0 auto; }
         .upload-section { background: #1e293b; border: 2px dashed #334155; border-radius: 12px; padding: 2rem; text-align: center; margin-bottom: 2rem; }
         .admin-panel { border-color: #f59e0b; }
@@ -46,7 +46,6 @@
         .inline-inputs { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; margin-bottom: 1rem; }
         .inline-inputs input, .inline-inputs select { width: auto; min-width: 150px; }
         
-        /* ESTILOS DE LA VENTANA EMERGENTE (MODAL) */
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.85); z-index: 1000; justify-content: center; align-items: center; backdrop-filter: blur(4px); }
         .modal-content { background: #1e293b; padding: 1.5rem; border-radius: 12px; width: 85%; height: 85vh; position: relative; border: 1px solid #334155; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         .close-modal { position: absolute; top: 15px; right: 20px; background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
@@ -78,7 +77,6 @@
                 <span class="worker-badge">🤖 Clúster Ollama: Conectado</span>
             </div>
 
-            <!-- PANEL DE CONTROL DE USUARIOS (Solo Admin) -->
             <div class="upload-section admin-panel" id="adminUsersSection" style="display: none">
                 <h3 style="margin-bottom: 5px; color:#f59e0b;">👥 Panel de Administrador: Registro</h3>
                 <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios normales ilimitados.</p>
@@ -95,7 +93,6 @@
                 <div id="userStatus" style="margin-top: 1rem; font-size: 0.9rem; font-weight: bold;"></div>
             </div>
 
-            <!-- SECCIÓN DE SUBIDA Y ASIGNACIÓN (Solo Admin) -->
             <div class="upload-section" id="uploadSection" style="display: none">
                 <h3 style="margin-bottom: 10px; color:white;">📤 Subir y Asignar Documento</h3>
                 <div style="margin-bottom: 15px;">
@@ -119,7 +116,6 @@
         </div>
     </div>
 
-    <!-- VENTANA EMERGENTE PARA LEER EL PDF -->
     <div class="modal-overlay" id="pdfModal">
         <div class="modal-content">
             <h3 style="color: #38bdf8; position: absolute; top: 15px; left: 20px;">👁️ Visor Seguro de Documentos</h3>
@@ -132,8 +128,13 @@
         const API = "/api";
         let usuarioActual = null;
         let rolActual = null;
+        
+        // VARIABLES DE SEGURIDAD (NUEVO)
+        let tokenSesion = null;
+        let latidoInterval = null;
 
         async function iniciarSesion() {
+            document.getElementById("errorMsg").textContent = "Verificando conexión...";
             const username = document.getElementById("inputUser").value.trim();
             const password = document.getElementById("inputPass").value;
             try {
@@ -142,17 +143,29 @@
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username, password }),
                 });
-                if (!res.ok) throw new Error();
+                
                 const data = await res.json();
-                usuarioActual = data.username; rolActual = data.rol;
+                
+                if (!res.ok) {
+                    throw new Error(data.error || "Usuario o contraseña incorrectos");
+                }
+                
+                usuarioActual = data.username; 
+                rolActual = data.rol;
+                tokenSesion = data.token_sesion; // Guardamos el token
+                
+                document.getElementById("errorMsg").textContent = ""; // Limpiar error
                 entrarAlSistema();
-            } catch {
-                document.getElementById("errorMsg").textContent = "Usuario o contraseña incorrectos";
+            } catch (err) {
+                document.getElementById("errorMsg").textContent = err.message;
             }
         }
 
         function entrarVisitante() {
-            usuarioActual = "visitante"; rolActual = "viewer";
+            usuarioActual = "visitante"; 
+            rolActual = "viewer";
+            tokenSesion = null; // El visitante no requiere bloqueo
+            document.getElementById("errorMsg").textContent = "";
             entrarAlSistema();
         }
 
@@ -170,12 +183,61 @@
                 document.getElementById("adminUsersSection").style.display = "none";
             }
             
+            // INICIAR LATIDO DE SEGURIDAD (NUEVO)
+            if (rolActual !== "viewer" && tokenSesion) {
+                // Envía una señal cada 10 segundos
+                latidoInterval = setInterval(enviarLatido, 10000);
+            }
+            
             cargarDocumentos();
         }
 
-        function cerrarSesion() {
+        // FUNCIÓN DEL LATIDO (NUEVO)
+        async function enviarLatido() {
+            if (!usuarioActual || !tokenSesion) return;
+            try {
+                const res = await fetch(`${API}/latido`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: usuarioActual, token_sesion: tokenSesion })
+                });
+                
+                if (!res.ok) {
+                    // Si el servidor rechaza el latido, alguien más inició sesión
+                    forzarCierre("Tu cuenta fue iniciada en otro dispositivo.");
+                }
+            } catch (e) {
+                console.error("Fallo de conexión en latido", e);
+            }
+        }
+
+        // FUNCIÓN DE EXPULSIÓN AUTOMÁTICA (NUEVO)
+        function forzarCierre(mensajeError) {
+            clearInterval(latidoInterval);
             document.getElementById("loginSection").style.display = "flex";
             document.getElementById("appSection").style.display = "none";
+            document.getElementById("inputPass").value = "";
+            document.getElementById("errorMsg").textContent = mensajeError;
+            usuarioActual = null; rolActual = null; tokenSesion = null;
+        }
+
+        // CERRAR SESIÓN MODIFICADO PARA LIBERAR LA CUENTA INMEDIATAMENTE
+        async function cerrarSesion() {
+            if (usuarioActual && rolActual !== 'viewer') {
+                // Le avisamos al servidor que ya nos fuimos para liberar la cuenta rápido
+                await fetch(`${API}/logout`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: usuarioActual })
+                });
+            }
+            
+            clearInterval(latidoInterval);
+            document.getElementById("loginSection").style.display = "flex";
+            document.getElementById("appSection").style.display = "none";
+            document.getElementById("inputPass").value = "";
+            document.getElementById("errorMsg").textContent = ""; // Limpiamos mensaje
+            usuarioActual = null; rolActual = null; tokenSesion = null;
         }
 
         async function cargarUsuariosDestino() {
@@ -252,7 +314,6 @@
             }
         }
 
-        // Funciones del Modal
         function abrirModal(nombreArchivo) {
             document.getElementById('pdfIframe').src = `${API}/ver/${nombreArchivo}#toolbar=0&navpanes=0`;
             document.getElementById('pdfModal').style.display = 'flex';
