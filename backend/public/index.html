@@ -50,7 +50,6 @@
         .modal-content { background: #1e293b; padding: 1.5rem; border-radius: 12px; width: 85%; height: 85vh; position: relative; border: 1px solid #334155; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
         .close-modal { position: absolute; top: 15px; right: 20px; background: #ef4444; color: white; border: none; border-radius: 6px; padding: 0.5rem 1rem; cursor: pointer; font-weight: bold; font-size: 0.9rem; }
         .close-modal:hover { background: #dc2626; }
-        .pdf-frame { flex-grow: 1; width: 100%; border: none; margin-top: 2.5rem; border-radius: 8px; background: #fff; }
     </style>
 </head>
 <body>
@@ -77,20 +76,26 @@
                 <span class="worker-badge">🤖 Clúster Ollama: Conectado</span>
             </div>
 
+            <!-- 🔥 PANEL DE ADMINISTRADOR ACORDEÓN -->
             <div class="upload-section admin-panel" id="adminUsersSection" style="display: none">
-                <h3 style="margin-bottom: 5px; color:#f59e0b;">👥 Panel de Administrador: Registro</h3>
-                <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios normales ilimitados.</p>
+                <h3 style="margin-bottom: 5px; color:#f59e0b; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 10px; user-select: none;" onclick="toggleAdminPanel()">
+                    👥 Panel de Administrador: Registro <span id="adminToggleIcon" style="font-size: 0.9rem;">➕</span>
+                </h3>
                 
-                <div class="inline-inputs">
-                    <input type="text" id="newUsername" placeholder="Nuevo Usuario">
-                    <input type="password" id="newPassword" placeholder="Contraseña">
-                    <select id="newRole">
-                        <option value="editor">Usuario normal (Ilimitado)</option>
-                        <option value="admin">Administrador (Máximo 10)</option>
-                    </select>
+                <div id="adminFormContent" style="display: none; margin-top: 15px;">
+                    <p style="font-size: 0.85rem; color:#94a3b8; margin-bottom: 1.5rem;">Seguridad Activa: Límite estricto de 10 Administradores. Usuarios normales ilimitados.</p>
+                    
+                    <div class="inline-inputs">
+                        <input type="text" id="newUsername" placeholder="Nuevo Usuario">
+                        <input type="password" id="newPassword" placeholder="Contraseña">
+                        <select id="newRole">
+                            <option value="editor">Usuario normal (Ilimitado)</option>
+                            <option value="admin">Administrador (Máximo 10)</option>
+                        </select>
+                    </div>
+                    <button class="btn-upload" style="background: #f59e0b; color: white;" onclick="crearUsuario()">+ Registrar Usuario</button>
+                    <div id="userStatus" style="margin-top: 1rem; font-size: 0.9rem; font-weight: bold;"></div>
                 </div>
-                <button class="btn-upload" style="background: #f59e0b; color: white;" onclick="crearUsuario()">+ Registrar Usuario</button>
-                <div id="userStatus" style="margin-top: 1rem; font-size: 0.9rem; font-weight: bold;"></div>
             </div>
 
             <div class="upload-section" id="uploadSection" style="display: none">
@@ -102,10 +107,18 @@
                     </select>
                 </div>
 
-                <input type="file" id="fileInput" accept=".pdf" style="display: none;" />
-                <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Seleccionar PDF</button>
-                <button class="btn-upload" style="background: #22c55e; margin-left: 0.5rem" onclick="subirDocumento()">⬆ Subir a la IA</button>
-                <div class="upload-status" id="uploadStatus"></div>
+                <input type="file" id="fileInput" accept=".pdf,.txt,.docx" style="display: none;" onchange="mostrarNombreArchivo()" />
+                <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Seleccionar Archivo</button>
+                
+                <button class="btn-upload" id="btnSubir" style="background: #22c55e; margin-left: 0.5rem" onclick="subirDocumento()">⬆ Subir a la IA</button>
+                <button class="btn-upload" id="btnCancelar" style="background: #ef4444; margin-left: 0.5rem; display: none;" onclick="cancelarSubida()">🛑 Cancelar Análisis</button>
+                
+                <div id="catSpinner" style="display: none; text-align: center; margin-top: 20px;">
+                    <img src="giphy.gif" alt="Michi programando..." width="130" style="border-radius: 8px;">
+                    <p style="color: #38bdf8; font-weight: bold; margin-top: 10px;">analizando... </p>
+                </div>
+
+                <div class="upload-status" id="uploadStatus">Acepta PDF, TXT y DOCX</div>
             </div>
 
             <div class="docs-header">
@@ -120,7 +133,7 @@
         <div class="modal-content">
             <h3 style="color: #38bdf8; position: absolute; top: 15px; left: 20px;">👁️ Visor Seguro de Documentos</h3>
             <button class="close-modal" onclick="cerrarModal()">❌ Cerrar Visor</button>
-            <iframe id="pdfIframe" class="pdf-frame" src=""></iframe>
+            <div id="visorContenedor" style="flex-grow: 1; width: 100%; margin-top: 2.5rem; border-radius: 8px; background: #fff; overflow: hidden;"></div>
         </div>
     </div>
 
@@ -128,10 +141,9 @@
         const API = "/api";
         let usuarioActual = null;
         let rolActual = null;
-        
-        // VARIABLES DE SEGURIDAD (NUEVO)
         let tokenSesion = null;
         let latidoInterval = null;
+        let uploadController = null;
 
         async function iniciarSesion() {
             document.getElementById("errorMsg").textContent = "Verificando conexión...";
@@ -145,16 +157,13 @@
                 });
                 
                 const data = await res.json();
-                
-                if (!res.ok) {
-                    throw new Error(data.error || "Usuario o contraseña incorrectos");
-                }
+                if (!res.ok) throw new Error(data.error || "Usuario o contraseña incorrectos");
                 
                 usuarioActual = data.username; 
                 rolActual = data.rol;
-                tokenSesion = data.token_sesion; // Guardamos el token
+                tokenSesion = data.token_sesion; 
                 
-                document.getElementById("errorMsg").textContent = ""; // Limpiar error
+                document.getElementById("errorMsg").textContent = ""; 
                 entrarAlSistema();
             } catch (err) {
                 document.getElementById("errorMsg").textContent = err.message;
@@ -164,7 +173,7 @@
         function entrarVisitante() {
             usuarioActual = "visitante"; 
             rolActual = "viewer";
-            tokenSesion = null; // El visitante no requiere bloqueo
+            tokenSesion = null; 
             document.getElementById("errorMsg").textContent = "";
             entrarAlSistema();
         }
@@ -183,16 +192,12 @@
                 document.getElementById("adminUsersSection").style.display = "none";
             }
             
-            // INICIAR LATIDO DE SEGURIDAD (NUEVO)
             if (rolActual !== "viewer" && tokenSesion) {
-                // Envía una señal cada 10 segundos
                 latidoInterval = setInterval(enviarLatido, 10000);
             }
-            
             cargarDocumentos();
         }
 
-        // FUNCIÓN DEL LATIDO (NUEVO)
         async function enviarLatido() {
             if (!usuarioActual || !tokenSesion) return;
             try {
@@ -201,17 +206,10 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: usuarioActual, token_sesion: tokenSesion })
                 });
-                
-                if (!res.ok) {
-                    // Si el servidor rechaza el latido, alguien más inició sesión
-                    forzarCierre("Tu cuenta fue iniciada en otro dispositivo.");
-                }
-            } catch (e) {
-                console.error("Fallo de conexión en latido", e);
-            }
+                if (!res.ok) forzarCierre("Tu cuenta fue iniciada en otro dispositivo.");
+            } catch (e) { console.error("Fallo de conexión en latido", e); }
         }
 
-        // FUNCIÓN DE EXPULSIÓN AUTOMÁTICA (NUEVO)
         function forzarCierre(mensajeError) {
             clearInterval(latidoInterval);
             document.getElementById("loginSection").style.display = "flex";
@@ -221,22 +219,19 @@
             usuarioActual = null; rolActual = null; tokenSesion = null;
         }
 
-        // CERRAR SESIÓN MODIFICADO PARA LIBERAR LA CUENTA INMEDIATAMENTE
         async function cerrarSesion() {
             if (usuarioActual && rolActual !== 'viewer') {
-                // Le avisamos al servidor que ya nos fuimos para liberar la cuenta rápido
                 await fetch(`${API}/logout`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ username: usuarioActual })
                 });
             }
-            
             clearInterval(latidoInterval);
             document.getElementById("loginSection").style.display = "flex";
             document.getElementById("appSection").style.display = "none";
             document.getElementById("inputPass").value = "";
-            document.getElementById("errorMsg").textContent = ""; // Limpiamos mensaje
+            document.getElementById("errorMsg").textContent = ""; 
             usuarioActual = null; rolActual = null; tokenSesion = null;
         }
 
@@ -246,12 +241,8 @@
                 const usuarios = await res.json();
                 const select = document.getElementById("selectUsuario");
                 select.innerHTML = '<option value="todos">Todos (Público)</option>';
-                usuarios.forEach(u => {
-                    select.innerHTML += `<option value="${u.username}">${u.username}</option>`;
-                });
-            } catch (e) {
-                console.error("Error cargando la lista de usuarios");
-            }
+                usuarios.forEach(u => select.innerHTML += `<option value="${u.username}">${u.username}</option>`);
+            } catch (e) { console.error("Error cargando usuarios"); }
         }
 
         async function crearUsuario() {
@@ -262,7 +253,7 @@
 
             if(!nuevoUsername || !nuevoPassword) {
                 status.style.color = "#ef4444";
-                return status.textContent = "⚠ Llena todos los campos del nuevo usuario";
+                return status.textContent = "⚠ Llena todos los campos";
             }
 
             try {
@@ -285,43 +276,124 @@
                 }
             } catch {
                 status.style.color = "#ef4444";
-                status.textContent = "❌ Error al conectar con el servidor";
+                status.textContent = "❌ Error al conectar";
+            }
+        }
+
+        // 🔥 FUNCIÓN PARA OCULTAR/MOSTRAR EL PANEL DE REGISTRO
+        function toggleAdminPanel() {
+            const content = document.getElementById("adminFormContent");
+            const icon = document.getElementById("adminToggleIcon");
+            if (content.style.display === "none") {
+                content.style.display = "block";
+                icon.textContent = "➖";
+            } else {
+                content.style.display = "none";
+                icon.textContent = "➕";
+            }
+        }
+
+        function mostrarNombreArchivo() {
+            const fileInput = document.getElementById("fileInput");
+            const status = document.getElementById("uploadStatus");
+            if (fileInput.files.length > 0) {
+                status.innerHTML = `📄 Archivo listo: <b>${fileInput.files[0].name}</b>`;
+                status.style.color = "#38bdf8"; 
+            } else {
+                status.innerHTML = "Acepta PDF, TXT y DOCX";
+                status.style.color = "#94a3b8"; 
+            }
+        }
+
+        function cancelarSubida() {
+            if (uploadController) {
+                uploadController.abort(); 
             }
         }
 
         async function subirDocumento() {
             const fileInput = document.getElementById("fileInput");
             const status = document.getElementById("uploadStatus");
+            const catSpinner = document.getElementById("catSpinner");
+            const btnSubir = document.getElementById("btnSubir");
+            const btnCancelar = document.getElementById("btnCancelar");
+
             if (!fileInput.files[0]) return status.textContent = "⚠ Selecciona un archivo";
             
-            status.textContent = "⏳ Analizando en el clúster... por favor espera.";
-            status.style.color = "#38bdf8";
+            status.style.display = "none";
+            catSpinner.style.display = "block";
+            btnSubir.style.display = "none";
+            btnCancelar.style.display = "inline-block";
 
             const formData = new FormData();
             formData.append("documento", fileInput.files[0]); 
             formData.append("asignado_a", document.getElementById("selectUsuario").value); 
 
+            uploadController = new AbortController();
+
             try {
-                const res = await fetch(`${API}/analizar`, { method: "POST", body: formData });
+                const res = await fetch(`${API}/analizar`, { 
+                    method: "POST", 
+                    body: formData,
+                    signal: uploadController.signal 
+                });
                 const data = await res.json();
+                
+                catSpinner.style.display = "none";
+                status.style.display = "block";
+                btnSubir.style.display = "inline-block";
+                btnCancelar.style.display = "none";
+                
+                if (!res.ok) {
+                    status.style.color = "#ef4444";
+                    return status.textContent = `❌ Error: ${data.error}`;
+                }
+
                 status.style.color = "#22c55e";
                 status.textContent = `✅ Listo. Analizado por nodo: ${data.registro.procesado_por}`;
-                fileInput.value = "";
+                fileInput.value = ""; 
                 cargarDocumentos();
-            } catch {
-                status.style.color = "#ef4444";
-                status.textContent = "❌ Error al procesar";
+            } catch (error) {
+                catSpinner.style.display = "none";
+                status.style.display = "block";
+                btnSubir.style.display = "inline-block";
+                btnCancelar.style.display = "none";
+
+                if (error.name === 'AbortError') {
+                    status.style.color = "#f59e0b"; 
+                    status.textContent = "🛑 Análisis cancelado por el usuario.";
+                    fileInput.value = ""; 
+                } else {
+                    status.style.color = "#ef4444";
+                    status.textContent = "❌ Error al procesar (Conexión perdida)";
+                }
             }
         }
 
         function abrirModal(nombreArchivo) {
-            document.getElementById('pdfIframe').src = `${API}/ver/${nombreArchivo}#toolbar=0&navpanes=0`;
+            const extension = nombreArchivo.split('.').pop().toLowerCase();
+            const url = `${API}/ver/${nombreArchivo}`;
+            let visorHTML = "";
+
+            if (extension === 'pdf') {
+                visorHTML = `<embed src="${url}#toolbar=0&navpanes=0&scrollbar=0" type="application/pdf" width="100%" height="100%" style="border: none;">`;
+            } else if (extension === 'txt') {
+                visorHTML = `<iframe src="${url}" width="100%" height="100%" style="border: none; background: white; padding: 20px;"></iframe>`;
+            } else {
+                visorHTML = `<div style="padding: 40px; color: black; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                                <h2>📄 Archivo de Texto (.${extension})</h2>
+                                <p style="margin-top: 15px; color: #64748b;">Los navegadores no pueden previsualizar este formato de forma nativa.</p>
+                                <p style="color: #64748b;">Por favor, cierra este visor y usa el botón de <b>Descargar</b> para verlo en tu computadora.</p>
+                             </div>`;
+            }
+
+            document.getElementById('visorContenedor').innerHTML = visorHTML;
             document.getElementById('pdfModal').style.display = 'flex';
         }
 
         function cerrarModal() {
             document.getElementById('pdfModal').style.display = 'none';
-            document.getElementById('pdfIframe').src = "";
+            document.getElementById('visorContenedor').innerHTML = ""; 
         }
 
         async function cargarDocumentos() {
@@ -336,7 +408,7 @@
                     if(textoIA.includes("rojo") || textoIA.includes("alta")) { color = "rojo"; etiqueta = "Alta"; }
                     else if(textoIA.includes("ambar") || textoIA.includes("ámbar") || textoIA.includes("media")) { color = "ambar"; etiqueta = "Media"; }
 
-                    let botonesAccion = `<button class="btn-download" style="background: #0ea5e9;" onclick="abrirModal('${doc.archivo_guardado}')">👁️ Ver PDF</button>`;
+                    let botonesAccion = `<button class="btn-download" style="background: #0ea5e9;" onclick="abrirModal('${doc.archivo_guardado}')">👁️ Ver Doc</button>`;
 
                     if(rolActual !== "viewer") {
                         botonesAccion += `<button class="btn-download" onclick="window.open('${API}/descargar/${doc.archivo_guardado}', '_blank')">⬇ Descargar</button>`;

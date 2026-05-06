@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const pdfParse = require('pdf-extraction');
+const mammoth = require('mammoth'); 
 const cors = require('cors');
 const fs = require('fs');
 const path = require('path');
@@ -23,20 +24,19 @@ mongoose.connect('mongodb://mongo:27017/sistema_documentos')
                 { username: "admin", password: "123", rol: "admin" },
                 { username: "williams", password: "123", rol: "editor" },
                 { username: "abril", password: "123", rol: "editor" },
-                { username: "invitado", password: "123", rol: "viewer" }
+                /*{ username: "invitado", password: "123", rol: "viewer" } */
             ]);
             console.log('👥 Usuarios iniciales inyectados en la Base de Datos');
         }
     })
     .catch(err => console.error('❌ Error conectando a Mongo:', err));
 
-// 🚨 ACTUALIZACIÓN DE ESQUEMA DE SEGURIDAD (NUEVO)
 const usuarioSchema = new mongoose.Schema({
     username: { type: String, required: true },
     password: { type: String, required: true },
     rol: { type: String, required: true },
-    ultimo_latido: { type: Date, default: null }, // Para saber cuándo fue su última señal
-    token_sesion: { type: String, default: null } // Para identificar qué computadora tiene la cuenta
+    ultimo_latido: { type: Date, default: null },
+    token_sesion: { type: String, default: null } 
 });
 const Usuario = mongoose.model('Usuario', usuarioSchema);
 
@@ -60,78 +60,58 @@ const storage = multer.diskStorage({
 const upload = multer({ storage: storage });
 
 // ---------------------------------------------------------
-// 🔐 ENDPOINT: LOGIN (MODIFICADO PARA CONCURRENCIA)
+// 🔐 ENDPOINT: LOGIN
 // ---------------------------------------------------------
 app.post('/api/login', async (req, res) => {
     try {
         const { username, password } = req.body;
         const usuarioEncontrado = await Usuario.findOne({ username, password });
         
-        if (!usuarioEncontrado) {
-            return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
-        }
+        if (!usuarioEncontrado) return res.status(401).json({ ok: false, error: 'Usuario o contraseña incorrectos' });
 
-        // LÓGICA DE PROTECCIÓN DE CUENTAS (Excluimos al visitante/viewer)
         if (usuarioEncontrado.rol !== 'viewer') {
             const ahora = Date.now();
-            const limiteActividad = 15000; // 15 segundos de tolerancia
-            
-            // Si tiene un latido registrado y fue hace menos de 15 segundos = Alguien lo está usando
+            const limiteActividad = 15000; 
             if (usuarioEncontrado.ultimo_latido && (ahora - new Date(usuarioEncontrado.ultimo_latido).getTime() < limiteActividad)) {
-                return res.status(403).json({ 
-                    ok: false, 
-                    error: 'Acceso denegado: El usuario ya tiene una sesión activa en otro dispositivo.' 
-                });
+                return res.status(403).json({ ok: false, error: 'Acceso denegado: Sesión activa en otro dispositivo, o bien intente más tarde.' });
             }
         }
 
-        // Si la cuenta está libre, generamos un candado (token) único para esta nueva PC
         const token_sesion = Math.random().toString(36).substring(2) + Date.now().toString(36);
         usuarioEncontrado.token_sesion = token_sesion;
         usuarioEncontrado.ultimo_latido = Date.now();
         await usuarioEncontrado.save();
 
         res.json({ ok: true, username: usuarioEncontrado.username, rol: usuarioEncontrado.rol, token_sesion });
-        
     } catch (error) {
         res.status(500).json({ error: 'Error en base de datos' });
     }
 });
 
 // ---------------------------------------------------------
-// 💓 NUEVO ENDPOINT: RECIBIR LATIDOS DE MANTENIMIENTO
+// 💓 ENDPOINT: LATIDOS Y LOGOUT
 // ---------------------------------------------------------
 app.post('/api/latido', async (req, res) => {
     try {
         const { username, token_sesion } = req.body;
-        if (!username || !token_sesion) return res.status(400).json({ error: "Faltan datos de sesión" });
+        if (!username || !token_sesion) return res.status(400).json({ error: "Faltan datos" });
 
         const usuarioEncontrado = await Usuario.findOne({ username });
-        if (!usuarioEncontrado) return res.status(404).json({ error: "Usuario no existe" });
-
-        // Si el token que manda la PC no es igual al de la BD, significa que se le dio acceso a otra máquina
-        if (usuarioEncontrado.token_sesion !== token_sesion) {
-            return res.status(403).json({ error: "Sesión robada o caducada" });
+        if (!usuarioEncontrado || usuarioEncontrado.token_sesion !== token_sesion) {
+            return res.status(403).json({ error: "Sesión robada" });
         }
 
-        // Si todo coincide, actualizamos su última hora de vida
         usuarioEncontrado.ultimo_latido = Date.now();
         await usuarioEncontrado.save();
-
         res.json({ ok: true });
     } catch (error) {
-        res.status(500).json({ error: "Error procesando latido" });
+        res.status(500).json({ error: "Error en latido" });
     }
 });
 
-// ---------------------------------------------------------
-// 🚪 NUEVO ENDPOINT: CIERRE MANUAL DE SESIÓN
-// ---------------------------------------------------------
 app.post('/api/logout', async (req, res) => {
     try {
-        const { username } = req.body;
-        // Limpiamos los datos para liberar la cuenta inmediatamente
-        await Usuario.findOneAndUpdate({ username }, { ultimo_latido: null, token_sesion: null });
+        await Usuario.findOneAndUpdate({ username: req.body.username }, { ultimo_latido: null, token_sesion: null });
         res.json({ ok: true });
     } catch (error) {
         res.status(500).json({ error: "Error al cerrar sesión" });
@@ -139,44 +119,30 @@ app.post('/api/logout', async (req, res) => {
 });
 
 // ---------------------------------------------------------
-// 👥 ENDPOINTS: GESTIÓN DE USUARIOS
+// 👥 ENDPOINTS: USUARIOS
 // ---------------------------------------------------------
 app.get('/api/usuarios', async (req, res) => {
     try {
-        const usuarios = await Usuario.find({ rol: { $in: ['admin', 'editor'] } }, 'username');
+        const usuarios = await Usuario.find({ rol: { $in: ['editor'] } }, 'username');
         res.json(usuarios);
-    } catch (error) {
-        res.status(500).json({ error: 'Error obteniendo usuarios' });
-    }
+    } catch (error) { res.status(500).json({ error: 'Error obteniendo usuarios' }); }
 });
 
 app.post('/api/usuarios', async (req, res) => {
     try {
         const { requesterRol, nuevoUsername, nuevoPassword, nuevoRol } = req.body;
-
-        if (requesterRol !== 'admin') {
-            return res.status(403).json({ error: 'Solo el administrador puede crear usuarios' });
-        }
+        if (requesterRol !== 'admin') return res.status(403).json({ error: 'Solo admin' });
 
         if (nuevoRol === 'admin') {
             const conteoAdmins = await Usuario.countDocuments({ rol: 'admin' });
-            if (conteoAdmins >= 10) {
-                return res.status(400).json({ error: 'Límite alcanzado: El sistema solo soporta un máximo de 10 Administradores.' });
-            }
+            if (conteoAdmins >= 10) return res.status(400).json({ error: 'Límite de 10 Administradores alcanzado.' });
         }
 
-        const existe = await Usuario.findOne({ username: nuevoUsername });
-        if (existe) {
-            return res.status(400).json({ error: 'Ese nombre de usuario ya existe' });
-        }
+        if (await Usuario.findOne({ username: nuevoUsername })) return res.status(400).json({ error: 'Usuario ya existe' });
 
-        const nuevoUser = new Usuario({ username: nuevoUsername, password: nuevoPassword, rol: nuevoRol });
-        await nuevoUser.save();
-
+        await new Usuario({ username: nuevoUsername, password: nuevoPassword, rol: nuevoRol }).save();
         res.json({ mensaje: 'Usuario registrado con éxito' });
-    } catch (error) {
-        res.status(500).json({ error: 'Error al crear el usuario' });
-    }
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
 });
 
 // ---------------------------------------------------------
@@ -185,41 +151,51 @@ app.post('/api/usuarios', async (req, res) => {
 app.get('/api/documentos', async (req, res) => {
     try {
         const { username, rol } = req.query;
-        let filtro = {};
-        if (rol === 'editor') {
-            filtro = { asignado_a: { $in: [username, 'todos'] } };
-        }
+        let filtro = rol === 'editor' ? { asignado_a: { $in: [username, 'todos'] } } : {};
         const historial = await Documento.find(filtro).sort({ fecha: -1 });
         res.json(historial);
-    } catch (error) {
-        res.status(500).json({ error: 'Error al leer el historial' });
-    }
+    } catch (error) { res.status(500).json({ error: 'Error' }); }
 });
 
 app.get('/api/descargar/:nombre', (req, res) => {
     res.download(path.join(carpetaDocs, req.params.nombre));
 });
 
-// ---------------------------------------------------------
-// 👁️ ENDPOINT: VER PDF (Visor Seguro)
-// ---------------------------------------------------------
 app.get('/api/ver/:nombre', (req, res) => {
     const rutaArchivo = path.join(carpetaDocs, req.params.nombre);
-    if (fs.existsSync(rutaArchivo)) {
-        res.sendFile(rutaArchivo);
-    } else {
-        res.status(404).send('Archivo no encontrado');
-    }
+    if (fs.existsSync(rutaArchivo)) res.sendFile(rutaArchivo);
+    else res.status(404).send('Archivo no encontrado');
 });
 
+// 🧠 EXTRACCIÓN MULTIFORMATO
 app.post('/api/analizar', upload.single('documento'), async (req, res) => {
     try {
-        if (!req.file) return res.status(400).json({ error: 'Falta PDF' });
+        if (!req.file) return res.status(400).json({ error: 'Falta documento' });
         const asignadoA = req.body.asignado_a || 'todos';
+        const extension = path.extname(req.file.originalname).toLowerCase();
+        
+        let textoLimpio = "";
 
-        const pdfBuffer = fs.readFileSync(req.file.path);
-        const pdfData = await pdfParse(pdfBuffer);
-        const textoLimpio = pdfData.text.trim().substring(0, 3000);
+        if (extension === '.pdf') {
+            const pdfBuffer = fs.readFileSync(req.file.path);
+            const pdfData = await pdfParse(pdfBuffer);
+            textoLimpio = pdfData.text.trim();
+        } 
+        else if (extension === '.txt') {
+            textoLimpio = fs.readFileSync(req.file.path, 'utf-8').trim();
+        } 
+        else if (extension === '.docx') {
+            const result = await mammoth.extractRawText({ path: req.file.path });
+            textoLimpio = result.value.trim();
+        } 
+        else {
+            fs.unlinkSync(req.file.path); 
+            return res.status(400).json({ error: 'Formato no soportado.' });
+        }
+
+        textoLimpio = textoLimpio.substring(0, 3000);
+
+        if(!textoLimpio) return res.status(400).json({ error: 'El documento está vacío o no se pudo leer.' });
 
         const promptOficina = `Eres un asistente estricto. Tu única tarea es leer el texto delimitado por ### y devolver exactamente dos cosas:
 1. Un resumen muy corto (máximo 2 líneas).
@@ -236,7 +212,11 @@ Tu respuesta:`;
             body: JSON.stringify({ model: 'llama3.2', prompt: promptOficina, stream: false })
         });
 
-        const nodoQueTrabajo = respuestaOllama.headers.get('x-nodo-ia') || 'Desconocido';
+        // 🔥 CORRECCIÓN AQUÍ: Si Nginx nos manda un historial de saltos separados por comas, 
+        // agarramos solo el último elemento, que es el que respondió con éxito.
+        let nodoQueTrabajo = respuestaOllama.headers.get('x-nodo-ia') || 'Desconocido';
+        nodoQueTrabajo = nodoQueTrabajo.split(',').pop().trim();
+
         const datosIA = await respuestaOllama.json();
 
         const nuevoRegistro = new Documento({
@@ -248,11 +228,11 @@ Tu respuesta:`;
         });
 
         await nuevoRegistro.save();
-
         res.json({ mensaje: 'Éxito', registro: nuevoRegistro });
+
     } catch (error) {
         console.error("❌ Error:", error);
-        res.status(500).json({ error: 'Error procesando' });
+        res.status(500).json({ error: 'Error procesando el documento' });
     }
 });
 
